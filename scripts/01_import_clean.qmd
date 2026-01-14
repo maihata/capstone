@@ -1,0 +1,187 @@
+---
+title: "01_import_clean"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(knitr)
+library(kableExtra)
+library(readxl)
+library(scales)
+library(reactable)
+library(dplyr)
+library(epitools)
+library(rio)
+library(corrplot)
+library(pwr)
+library(epitools)
+library(shiny)
+library(plotly)
+library(readr)
+library(stringr)
+```
+
+Set working directory.
+
+```{r setup}
+knitr::opts_knit$set(root.dir = normalizePath("/Users/maiko/Desktop/capstone"))
+```
+
+```{r}
+# do NOT use getwd() for checking if the above code worked. 
+list.files("data/raw")
+```
+
+Combine all sheets from 1 file:
+
+1\) skip notes above the table.
+
+```{r}
+list.files("data/raw")
+```
+
+```{r}
+raw_1314_combined_sheets <- read_excel(
+  path = "data/raw/1314-cexiting-2.xlsx", 
+  sheet = "AM_N")
+```
+
+Clean sheets of all of the excel files and get rid of the headers and footers.
+
+✅ A helper function to extract just the table from one sheet
+
+This does three things:
+
+-   reads the whole sheet with no headers
+
+-   finds the header row where the first column is "State"
+
+-   stops before the notes (“Source:”, “Note:”, etc.)
+
+-   converts x and \* to NA, then makes numeric columns numeric
+
+```{r}
+read_osep_exit_sheet <- function(path, sheet) {
+
+  # read everything as text first (safer with x/*)
+  raw <- read_excel(path, sheet = sheet, col_names = FALSE) |>
+    mutate(across(everything(), as.character))
+
+  # find the row that contains the column header "State" in the first column
+  header_row <- which(str_trim(raw[[1]]) == "State")[1]
+
+  if (is.na(header_row)) {
+    stop("Could not find header row (State) in sheet: ", sheet)
+  }
+
+  # set column names from that header row
+  col_names <- raw[header_row, ] |>
+    unlist(use.names = FALSE) |>
+    as.character() |>
+    str_trim()
+
+  dat <- raw[(header_row + 1):nrow(raw), ]
+  names(dat) <- col_names
+
+  # detect where footnotes start (look in the first column)
+  footnote_row <- which(str_detect(str_trim(dat[[1]]), "^(Source:|Note:|Data are|\\*|x\\s|$)"))[1]
+  if (!is.na(footnote_row)) {
+    dat <- dat[1:(footnote_row - 1), ]
+  }
+
+  # drop fully empty rows
+  dat <- dat |> filter(!if_all(everything(), ~ is.na(.) | str_trim(.) == ""))
+
+  # standardize column names
+  dat <- dat |> janitor::clean_names()
+
+  # replace suppression codes with NA
+  dat <- dat |>
+    mutate(across(everything(), ~ na_if(str_trim(.x), "x"))) |>
+    mutate(across(everything(), ~ na_if(str_trim(.x), "*")))
+
+  # make all non-state columns numeric (keeps state as character)
+  if ("state" %in% names(dat)) {
+    dat <- dat |>
+      mutate(across(-state, readr::parse_number))
+  }
+
+  # keep sheet info
+  dat <- dat |> mutate(sheet = sheet, .before = 1)
+
+  dat
+}
+
+```
+
+✅ Test it on your sheet (AM_N)
+
+```{r}
+path <- "data/raw/1314-cexiting-2.xlsx"
+
+am_n <- read_osep_exit_sheet(path, sheet = "AM_N")
+
+glimpse(am_n)
+head(am_n, 10)
+```
+
+✅ Combine multiple sheets (within one file)
+
+```{r}
+sheets <- excel_sheets(path)
+n_sheets <- sheets[str_detect(sheets, "_N$")]
+
+all_n <- map_dfr(n_sheets, ~ read_osep_exit_sheet(path, sheet = .x))
+
+dplyr::count(all_n, sheet)
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+Importing OSEP excel datasets for 2013-22 (based on 1_clean_data_table_12.qmd)
+
+-   Remove deceased/continuing in Part C
+
+-   Mutate complete_or_not_eligible to combine 3 similar categories
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```

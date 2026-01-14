@@ -1,0 +1,45 @@
+---
+title: "90_lib_functions.qmd"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(knitr)
+library(kableExtra)
+library(readxl)
+library(scales)
+library(reactable)
+library(dplyr)
+library(epitools)
+library(rio)
+library(corrplot)
+library(pwr)
+library(epitools)
+library(shiny)
+library(plotly)
+```
+
+Setting up working directory:
+
+```{r setup}
+knitr::opts_knit$set(root.dir = normalizePath("/Users/maiko/Desktop/capstone"))
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
