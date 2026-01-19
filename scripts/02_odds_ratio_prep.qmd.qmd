@@ -1,0 +1,260 @@
+---
+title: "02_odds_ratio_prep.qmd"
+author: "Maiko Hata"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(knitr)
+library(kableExtra)
+library(readxl)
+library(scales)
+library(reactable)
+library(dplyr)
+library(epitools)
+library(rio)
+library(corrplot)
+library(pwr)
+library(epitools)
+library(shiny)
+library(plotly)
+```
+
+✅ Step 1. Make paths stable (so you don’t get this error again)
+
+```{r}
+setwd("/Users/maiko/Desktop/capstone")
+getwd()
+```
+
+✅ Step 1.1 — Read your RDS and do a quick peek
+
+```{r}
+setwd("..")
+getwd()
+list.files("data/analysis")
+```
+
+```{r}
+df <- readRDS("/Users/maiko/Desktop/capstone/data/analysis/osep_exits_all_years_all_race_analysis.rds")
+
+dim(df)
+names(df)
+
+```
+
+✅ Step 1.4 — Standardize column names + confirm the required fields exist
+
+```{r}
+# standardize names to lowercase for consistency
+names(df) <- tolower(names(df))
+
+# define exit category columns
+exit_cats <- c(
+  "dismissed",
+  "moved_out",
+  "not_determined",
+  "not_eligible",
+  "part_b_eligible",
+  "withdrawn"
+)
+
+# required columns (keep race_ethnicity)
+required_cols <- c("state", "race_ethnicity", "total_exits", exit_cats)
+
+missing_cols <- setdiff(required_cols, names(df))
+missing_cols
+
+
+```
+
+✅ Step 1.5 — Combine (pool) all years within state × race
+
+```{r}
+
+```
+
+```{r}
+pooled <- df %>%
+  group_by(state, race_ethnicity) %>%
+  summarise(
+    total_exits = sum(total_exits, na.rm = TRUE),
+    dismissed = sum(dismissed, na.rm = TRUE),
+    moved_out = sum(moved_out, na.rm = TRUE),
+    not_determined = sum(not_determined, na.rm = TRUE),
+    not_eligible = sum(not_eligible, na.rm = TRUE),
+    part_b_eligible = sum(part_b_eligible, na.rm = TRUE),
+    withdrawn = sum(withdrawn, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+dim(pooled)
+head(pooled)
+
+```
+
+✅ Step 1.6 — Reshape to long by exit category (set up the 2×2 pieces)
+
+```{r}
+pooled_long <- pooled %>%
+  tidyr::pivot_longer(
+    cols = all_of(exit_cats),
+    names_to = "category",
+    values_to = "a"   # a = exits in this category for this race_ethnicity
+  ) %>%
+  mutate(
+    b = total_exits - a,      # b = all other exits for this race_ethnicity
+    flag_cat_gt_total = a > total_exits,
+    flag_negative_b = b < 0
+  )
+
+dim(pooled_long)
+head(pooled_long)
+
+```
+
+✅ Step 1.7 — Compute state totals for each category (the reference group building blocks)
+
+```{r}
+state_totals_long <- pooled %>%
+  tidyr::pivot_longer(
+    cols = all_of(exit_cats),
+    names_to = "category",
+    values_to = "state_event_total"
+  ) %>%
+  group_by(state, category) %>%
+  summarise(
+    state_total_exits = sum(total_exits, na.rm = TRUE),
+    state_event_total = sum(state_event_total, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+dim(state_totals_long)
+head(state_totals_long)
+
+```
+
+✅ Step 1.8 — Build the full 2×2 table (a, b, c, d) and compute odds ratios
+
+```{r}
+or_tbl <- pooled_long %>%
+  left_join(state_totals_long, by = c("state", "category")) %>%
+  mutate(
+    # reference group = all other races in the same state
+    c = state_event_total - a,
+    d = (state_total_exits - total_exits) - c,
+
+    # flags for data issues
+    flag_zero_cell = (a == 0 | b == 0 | c == 0 | d == 0),
+    flag_negative_cells = (c < 0 | d < 0),
+
+    # Haldane–Anscombe correction if any cell is zero
+    a_adj = if_else(flag_zero_cell, a + 0.5, as.numeric(a)),
+    b_adj = if_else(flag_zero_cell, b + 0.5, as.numeric(b)),
+    c_adj = if_else(flag_zero_cell, c + 0.5, as.numeric(c)),
+    d_adj = if_else(flag_zero_cell, d + 0.5, as.numeric(d)),
+
+    # odds ratio and log odds ratio
+    or = (a_adj * d_adj) / (b_adj * c_adj),
+    log_or = log(or)
+  )
+
+dim(or_tbl)
+head(or_tbl)
+
+```
+
+✅ Step 1.9 — Select final columns and save for Shiny
+
+```{r}
+final_or_tbl <- or_tbl %>%
+  select(
+    state,
+    race_ethnicity,
+    category,
+    a, b, c, d,
+    or,
+    log_or,
+    flag_zero_cell,
+    flag_negative_cells
+  ) %>%
+  arrange(state, category, race_ethnicity)
+
+dim(final_or_tbl)
+head(final_or_tbl)
+
+```
+
+✅ Step 1.11a — Add a “small cell” flag now (no CIs yet)
+
+YAY I REMEMBERED TO FLAG CELLS SMALLER THAN 5 - MAKING LINA PROUD 🙌🏼
+
+```{r}
+final_or_tbl <- final_or_tbl %>%
+  mutate(
+    flag_small_cell_5 = (a < 5 | b < 5 | c < 5 | d < 5)
+  )
+
+final_or_tbl %>%
+  summarise(
+    n_rows = n(),
+    n_small_cell_5 = sum(flag_small_cell_5, na.rm = TRUE),
+    pct_small_cell_5 = mean(flag_small_cell_5, na.rm = TRUE)
+  ) %>%
+  print()
+
+```
+
+✅ **Option A — Add 95% confidence intervals for each odds ratio**
+
+```{r}
+final_or_tbl <- final_or_tbl %>%
+  mutate(
+    # recreate adjusted cells (same logic as before)
+    a_adj = if_else(flag_zero_cell, a + 0.5, as.numeric(a)),
+    b_adj = if_else(flag_zero_cell, b + 0.5, as.numeric(b)),
+    c_adj = if_else(flag_zero_cell, c + 0.5, as.numeric(c)),
+    d_adj = if_else(flag_zero_cell, d + 0.5, as.numeric(d)),
+
+    # standard error of log(OR)
+    se_log_or = sqrt(
+      1 / a_adj +
+      1 / b_adj +
+      1 / c_adj +
+      1 / d_adj
+    ),
+
+    # 95% confidence intervals
+    ci_low  = exp(log_or - 1.96 * se_log_or),
+    ci_high = exp(log_or + 1.96 * se_log_or)
+  )
+
+final_or_tbl %>%
+  select(or, ci_low, ci_high, flag_small_cell_5) %>%
+  head()
+
+```
+
+✅ Step — Save outputs (CSV first, then RDS)
+
+```{r}
+setwd("/Users/maiko/Desktop/capstone")
+getwd()
+
+```
+
+```{r}
+write.csv(
+  final_or_tbl,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_avg_or_by_race_category_all_years.csv",
+  row.names = FALSE
+)
+
+saveRDS(
+  final_or_tbl,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_avg_or_by_race_category_all_years.rds"
+)
+```
