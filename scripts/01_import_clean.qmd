@@ -376,14 +376,11 @@ OSEP_all_years_all_race <- OSEP_all_years_all_race |>
 
 ```
 
-```{r}
-
-```
+Save the analysis-ready dataset as CSV and RDS
 
 ```{r}
+write_csv(OSEP_all_years_all_race, "data/analysis/osep_exits_all_years_all_race_analysis.csv")
 
-```
-
-```{r}
+saveRDS(OSEP_all_years_all_race, "data/analysis/osep_exits_all_years_all_race_analysis.rds")
 
 ```
