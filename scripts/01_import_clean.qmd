@@ -27,6 +27,9 @@ library(stringr)
 Set working directory.
 
 ```{r setup}
+### setwd() changes where R is working right now.
+### knitr::opts_knit$set(root.dir = ...) changes where knitr pretends “home” is when it renders a document.
+
 knitr::opts_knit$set(root.dir = normalizePath("/Users/maiko/Desktop/capstone"))
 ```
 
@@ -40,6 +43,7 @@ Combine all sheets from 1 file:
 1\) skip notes above the table.
 
 ```{r}
+### trial first with just 1 sheet from an excel file   
 raw_1314_combined_sheets <- read_excel(
   path = "data/raw/1314-cexiting-2.xlsx", 
   sheet = "AM_N")
@@ -60,14 +64,68 @@ This does three things:
 -   converts x and \* to NA, then makes numeric columns numeric
 
 ```{r}
+### THIS FUNCTION DIDN'T HAVE THE YEAR NAMES OF THE FILE ADDED. 
+# read_osep_exit_sheet <- function(path, sheet) {
+# 
+#   # read everything as text first (safer with x/*)
+#   raw <- read_excel(path, sheet = sheet, col_names = FALSE) |>
+#     mutate(across(everything(), as.character))
+# 
+#   # find the row that contains the column header "State" in the first column
+#   header_row <- which(str_trim(raw[[1]]) == "State")[1]
+# 
+#   if (is.na(header_row)) {
+#     stop("Could not find header row (State) in sheet: ", sheet)
+#   }
+# 
+#   # set column names from that header row
+#   col_names <- raw[header_row, ] |>
+#     unlist(use.names = FALSE) |>
+#     as.character() |>
+#     str_trim()
+# 
+#   dat <- raw[(header_row + 1):nrow(raw), ]
+#   names(dat) <- col_names
+# 
+#   # detect where footnotes start (look in the first column)
+#   footnote_row <- which(str_detect(str_trim(dat[[1]]), "^(Source:|Note:|Data are|\\*|x\\s|$)"))[1]
+#   if (!is.na(footnote_row)) {
+#     dat <- dat[1:(footnote_row - 1), ]
+#   }
+# 
+#   # drop fully empty rows
+#   dat <- dat |> filter(!if_all(everything(), ~ is.na(.) | str_trim(.) == ""))
+# 
+#   # standardize column names
+#   dat <- dat |> janitor::clean_names()
+# 
+#   # replace suppression codes with NA
+#   dat <- dat |>
+#     mutate(across(everything(), ~ na_if(str_trim(.x), "x"))) |>
+#     mutate(across(everything(), ~ na_if(str_trim(.x), "*")))
+# 
+#   # make all non-state columns numeric (keeps state as character)
+#   if ("state" %in% names(dat)) {
+#     dat <- dat |>
+#       mutate(across(-state, readr::parse_number))
+#   }
+# 
+#   # keep sheet info
+#   dat <- dat |> mutate(sheet = sheet, .before = 1)
+# 
+#   dat
+# }
+```
+
+```{r}
 read_osep_exit_sheet <- function(path, sheet) {
 
   # read everything as text first (safer with x/*)
-  raw <- read_excel(path, sheet = sheet, col_names = FALSE) |>
-    mutate(across(everything(), as.character))
+  raw <- readxl::read_excel(path, sheet = sheet, col_names = FALSE) |>
+    dplyr::mutate(dplyr::across(dplyr::everything(), as.character))
 
   # find the row that contains the column header "State" in the first column
-  header_row <- which(str_trim(raw[[1]]) == "State")[1]
+  header_row <- which(stringr::str_trim(raw[[1]]) == "State")[1]
 
   if (is.na(header_row)) {
     stop("Could not find header row (State) in sheet: ", sheet)
@@ -77,36 +135,49 @@ read_osep_exit_sheet <- function(path, sheet) {
   col_names <- raw[header_row, ] |>
     unlist(use.names = FALSE) |>
     as.character() |>
-    str_trim()
+    stringr::str_trim()
 
   dat <- raw[(header_row + 1):nrow(raw), ]
   names(dat) <- col_names
 
   # detect where footnotes start (look in the first column)
-  footnote_row <- which(str_detect(str_trim(dat[[1]]), "^(Source:|Note:|Data are|\\*|x\\s|$)"))[1]
+  footnote_row <- which(
+    stringr::str_detect(
+      stringr::str_trim(dat[[1]]),
+      "^(Source:|Note:|Data are|\\*|x\\s|$)"
+    )
+  )[1]
+
   if (!is.na(footnote_row)) {
     dat <- dat[1:(footnote_row - 1), ]
   }
 
   # drop fully empty rows
-  dat <- dat |> filter(!if_all(everything(), ~ is.na(.) | str_trim(.) == ""))
+  dat <- dat |>
+    dplyr::filter(!dplyr::if_all(dplyr::everything(), ~ is.na(.) | stringr::str_trim(.) == ""))
 
   # standardize column names
   dat <- dat |> janitor::clean_names()
 
   # replace suppression codes with NA
   dat <- dat |>
-    mutate(across(everything(), ~ na_if(str_trim(.x), "x"))) |>
-    mutate(across(everything(), ~ na_if(str_trim(.x), "*")))
+    dplyr::mutate(dplyr::across(dplyr::everything(), ~ dplyr::na_if(stringr::str_trim(.x), "x"))) |>
+    dplyr::mutate(dplyr::across(dplyr::everything(), ~ dplyr::na_if(stringr::str_trim(.x), "*")))
 
   # make all non-state columns numeric (keeps state as character)
   if ("state" %in% names(dat)) {
     dat <- dat |>
-      mutate(across(-state, readr::parse_number))
+      dplyr::mutate(dplyr::across(-state, readr::parse_number))
   }
 
-  # keep sheet info
-  dat <- dat |> mutate(sheet = sheet, .before = 1)
+  # keep metadata: sheet + file info (year_code from file name)
+  dat <- dat |>
+    dplyr::mutate(
+      sheet = sheet,
+      source_file = basename(path),
+      year_code = stringr::str_extract(basename(path), "^\\d{4}"),
+      .before = 1
+    )
 
   dat
 }
@@ -114,73 +185,194 @@ read_osep_exit_sheet <- function(path, sheet) {
 
 ✅ Test it on your sheet (AM_N)
 
+-   am_n is just a small df for 13-14 to check to make sure the combining the sheets worked.
+
 ```{r}
-path <- "data/raw/1314-cexiting-2.xlsx"
-
-am_n <- read_osep_exit_sheet(path, sheet = "AM_N")
-
-glimpse(am_n)
-head(am_n, 10)
+test_am_n <- read_osep_exit_sheet(
+  path  = "data/raw/1314-cexiting-2.xlsx",
+  sheet = "AM_N"
+)
 ```
 
-✅ Combine multiple sheets (within one file)
+Combine multiple sheets (within one file)
+
+✅ Chunk 1: list the Excel files (your 10 years)
 
 ```{r}
-sheets <- excel_sheets(path)
-n_sheets <- sheets[str_detect(sheets, "_N$")]
-
-all_n <- map_dfr(n_sheets, ~ read_osep_exit_sheet(path, sheet = .x))
-
-dplyr::count(all_n, sheet)
-
-```
-
-Repeat cleaning the header/footers for all of the excel files:
-
-```{r}
-files <- list.files(
-  path = "data/raw",
-  pattern = "cexiting-2\\.xlsx$",
+OSEP_files <- list.files(
+  "data/raw",
+  pattern = "^[0-9]{4}.*\\.xlsx$",
   full.names = TRUE
 )
 
-files
+OSEP_files
+
 ```
 
+✅ Chunk 2: inspect sheets for one year (optional sanity check)
+
 ```{r}
-am_n_all <- purrr::map_dfr(
-  files,
-  ~ read_osep_exit_sheet(.x, sheet = "AM_N")
+path <- OSEP_files[1]
+
+sheets <- excel_sheets(path)
+n_sheets <- sheets[str_detect(sheets, "_N$")]
+
+n_sheets
+
+```
+
+✅ Chunk 3: read + bind all race sheets for one year
+
+```{r}
+one_year_all_race <- map_dfr(
+  n_sheets,
+  ~ read_osep_exit_sheet(path = path, sheet = .x)
 )
-```
 
-```{r}
-
-```
-
-```{r}
+count(one_year_all_race, sheet)
 
 ```
 
+✅ Chunk 4: scale to all years + all race sheets
+
 ```{r}
+OSEP_all_years_all_race <- map_dfr(OSEP_files, function(f) {
+
+  n_sheets <- excel_sheets(f) |>
+    keep(~ stringr::str_detect(.x, "_N$"))
+
+  map_dfr(n_sheets, ~ read_osep_exit_sheet(path = f, sheet = .x))
+})
+
 
 ```
 
-Importing OSEP excel datasets for 2013-22 (based on 1_clean_data_table_12.qmd)
-
--   Remove deceased/continuing in Part C
-
--   Mutate complete_or_not_eligible to combine 3 similar categories
+✅ Chunk 5: quality checks (confirm you got all years + all race sheets)
 
 ```{r}
+OSEP_all_years_all_race |>
+  dplyr::distinct(year_code) |>
+  dplyr::arrange(year_code)
+
+OSEP_all_years_all_race |>
+  dplyr::count(year_code, sheet) |>
+  dplyr::arrange(year_code, sheet)
 
 ```
 
+✅ Chunk 6: save your combined dataset
+
 ```{r}
+write_csv(
+  OSEP_all_years_all_race,
+  "data/clean/osep_exits_all_years_all_race_long.csv"
+)
+
+saveRDS(
+  OSEP_all_years_all_race,
+  "data/clean/osep_exits_all_years_all_race_long.rds"
+)
 
 ```
 
+Cleaning up the data more
+
+✅ Step 1: rewrite race / ethnicity categories (from sheet codes)
+
 ```{r}
+OSEP_all_years_all_race <- OSEP_all_years_all_race |>
+  dplyr::mutate(
+    race_ethnicity = dplyr::case_when(
+      sheet == "AM_N" ~ "American Indian or Alaska Native",
+      sheet == "AS_N" ~ "Asian",
+      sheet == "BL_N" ~ "Black or African American",
+      sheet == "HI_N" ~ "Hispanic or Latino",
+      sheet == "PI_N" ~ "Native Hawaiian or Other Pacific Islander",
+      sheet == "WH_N" ~ "White",
+      TRUE ~ sheet
+    )
+  )
+
+```
+
+✅ Step 2: drop + combine EI exit categories
+
+2a. Drop unused categories
+
+```{r}
+OSEP_all_years_all_race <- OSEP_all_years_all_race |>
+  dplyr::select(
+    -deceased,
+    -part_b_eligible_continuing_in_part_c
+  )
+
+```
+
+2b. Combine exit categories
+
+```{r}
+OSEP_all_years_all_race <- OSEP_all_years_all_race |>
+  dplyr::mutate(
+    not_eligible_combined =
+      not_eligible_for_part_b_exit_with_no_referrals +
+      not_eligible_for_part_b_exit_with_referrals_to_other_programs +
+      complete_prior_to_reaching_max_age_for_part_c
+  )
+
+```
+
+✅ Step 3: rename and finalize exit categories
+
+```{r}
+OSEP_all_years_all_race <- OSEP_all_years_all_race |>
+  dplyr::select(
+    -not_eligible_for_part_b_exit_with_no_referrals,
+    -not_eligible_for_part_b_exit_with_referrals_to_other_programs,
+    -complete_prior_to_reaching_max_age_for_part_c
+  ) |>
+  dplyr::rename(
+    not_eligible = not_eligible_combined
+  )
+
+```
+
+✅ Quick sanity check (strongly recommended)
+
+```{r}
+names(OSEP_all_years_all_race)
+
+```
+
+✅ Corrected renaming (one-time fix)
+
+```{r}
+OSEP_all_years_all_race <- OSEP_all_years_all_race |>
+  dplyr::rename(
+    total_exits     = exiting_total2,
+    withdrawn       = withdrawal_by_parent,
+    part_b_eligible = part_b_eligible_exiting_part_c,
+    moved_out       = moved_out_of_state,
+    not_determined  = part_b_eligibility_not_determined, 
+    dismissed       = attempts_to_contact_unsuccessful
+  ) 
+```
+
+```{r}
+OSEP_all_years_all_race <- OSEP_all_years_all_race |>
+  relocate(
+    source_file,
+    sheet,
+    year_code,
+    state,
+    race_ethnicity,
+    total_exits,
+    dismissed,
+    moved_out,
+    not_determined,
+    not_eligible,
+    part_b_eligible,
+    withdrawn
+  )
 
 ```
 
