@@ -40,10 +40,6 @@ Combine all sheets from 1 file:
 1\) skip notes above the table.
 
 ```{r}
-list.files("data/raw")
-```
-
-```{r}
 raw_1314_combined_sheets <- read_excel(
   path = "data/raw/1314-cexiting-2.xlsx", 
   sheet = "AM_N")
@@ -114,7 +110,6 @@ read_osep_exit_sheet <- function(path, sheet) {
 
   dat
 }
-
 ```
 
 ✅ Test it on your sheet (AM_N)
@@ -140,8 +135,23 @@ dplyr::count(all_n, sheet)
 
 ```
 
-```{r}
+Repeat cleaning the header/footers for all of the excel files:
 
+```{r}
+files <- list.files(
+  path = "data/raw",
+  pattern = "cexiting-2\\.xlsx$",
+  full.names = TRUE
+)
+
+files
+```
+
+```{r}
+am_n_all <- purrr::map_dfr(
+  files,
+  ~ read_osep_exit_sheet(.x, sheet = "AM_N")
+)
 ```
 
 ```{r}
