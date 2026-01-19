@@ -238,6 +238,29 @@ final_or_tbl %>%
 
 ```
 
+Final clean drop + reorder (run once)
+
+```{r}
+final_or_tbl <- final_or_tbl %>%
+  select(
+    state,
+    race_ethnicity,
+    category,
+    a, b, c, d,
+    or,
+    log_or,
+    se_log_or,
+    ci_low,
+    ci_high,
+    flag_zero_cell,
+    flag_small_cell_5
+  ) %>%
+  arrange(state, category, race_ethnicity)
+
+names(final_or_tbl)
+
+```
+
 ✅ Step — Save outputs (CSV first, then RDS)
 
 ```{r}
