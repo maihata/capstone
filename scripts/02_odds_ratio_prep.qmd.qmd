@@ -74,10 +74,6 @@ missing_cols
 ✅ Step 1.5 — Combine (pool) all years within state × race
 
 ```{r}
-
-```
-
-```{r}
 pooled <- df %>%
   group_by(state, race_ethnicity) %>%
   summarise(

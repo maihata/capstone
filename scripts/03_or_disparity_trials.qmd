@@ -1,0 +1,239 @@
+---
+title: "03_or_disparity_trials"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(knitr)
+library(kableExtra)
+library(readxl)
+library(scales)
+library(reactable)
+library(dplyr)
+library(epitools)
+library(rio)
+library(corrplot)
+library(pwr)
+library(epitools)
+library(shiny)
+library(plotly)
+```
+
+✅ Step 1: State × category disparity spread (log OR scale)\
+
+This step takes your race-level OR dataset and creates one summary row per state and exit category. It removes unstable rows (zero cells and small cells), then finds the highest and lowest log_or across race groups within each state/category. The difference between those two values is your directionless “disparity spread” for the first heatmap.
+
+```{r}
+# Input: race-level OR dataset (state × race_ethnicity × category)
+or_df <- readRDS(
+  "/Users/maiko/Desktop/capstone/data/analysis/state_avg_or_by_race_category_all_years.rds"
+)
+```
+
+```{r}
+# Output: state × category disparity spread (directionless magnitude)
+state_category_disparity <- or_df %>%
+  filter(!flag_zero_cell, !flag_small_cell_5) %>%   # suppress unstable estimates
+  group_by(state, category) %>%
+  filter(n() >= 2) %>%                              # need at least 2 race groups
+  summarise(
+    log_or_high = max(log_or, na.rm = TRUE),
+    log_or_low  = min(log_or, na.rm = TRUE),
+    disparity_spread = log_or_high - log_or_low,
+    .groups = "drop"
+  )
+```
+
+```{r}
+# Save as RDS (for Shiny / R use)
+saveRDS(
+  state_category_disparity,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_category_disparity_spread_log_or.rds"
+)
+
+# Save as CSV (for inspection / sharing)
+write.csv(
+  state_category_disparity,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_category_disparity_spread_log_or.csv",
+  row.names = FALSE
+)
+```
+
+✅ Step 2: Add race labels for the highest and lowest log_or (tooltip/card-ready)\
+
+This step keeps the same flag rules as Step 1 (drop zero/small cells), then for each state × category it identifies which race group has the highest log_or and which has the lowest log_or. It joins those race names onto your existing `state_category_disparity` table, so you can use them later in Shiny tooltips and state cards.
+
+```{r}
+or_df <- readRDS(
+  "/Users/maiko/Desktop/capstone/data/analysis/state_avg_or_by_race_category_all_years.rds"
+)
+
+# Apply the same suppression rule used in Step 1
+or_df_ok <- or_df %>%
+  filter(!flag_zero_cell, !flag_small_cell_5)
+```
+
+```{r}
+# ---- Input 2: the Step 1 output (state × category disparity) ----
+state_category_disparity <- readRDS(
+  "/Users/maiko/Desktop/capstone/data/analysis/state_category_disparity_spread_log_or.rds"
+)
+
+# Identify race with highest and lowest log_or in each state × category
+race_extremes <- or_df_ok %>%
+  group_by(state, category) %>%
+  filter(n() >= 2) %>%
+  summarise(
+    race_high = race_ethnicity[which.max(log_or)],
+    race_low  = race_ethnicity[which.min(log_or)],
+    .groups = "drop"
+  )
+
+# Join race labels onto the Step 1 table
+state_category_disparity_v2 <- state_category_disparity %>%
+  left_join(race_extremes, by = c("state", "category"))
+
+```
+
+```{r}
+# Save updated outputs (clear, descriptive names)
+saveRDS(
+  state_category_disparity_v2,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_category_disparity_spread_log_or_with_race_extremes.rds"
+)
+
+write.csv(
+  state_category_disparity_v2,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_category_disparity_spread_log_or_with_race_extremes.csv",
+  row.names = FALSE
+)
+
+```
+
+✅ Step 3: Rank states within each exit category (by disparity spread)\
+
+This step takes your Step 2 output (state × category disparity spread, plus race_high/race_low) and ranks states within each category from largest to smallest disparity. States with missing disparity values (gray tiles / NA) are excluded from ranking so you don’t accidentally rank suppressed results.
+
+```{r}
+# Input: Step 2 output (state × exit category disparity + race extremes)
+state_exit_disp <- readRDS(
+  "/Users/maiko/Desktop/capstone/data/analysis/state_category_disparity_spread_log_or_with_race_extremes.rds"
+)
+
+```
+
+```{r}
+# Rank states within each exit category (largest disparity = rank 1)
+state_exit_disp_ranked <- state_exit_disp %>%
+  group_by(category) %>%
+  mutate(
+    disparity_rank = if_else(
+      is.na(disparity_spread),
+      NA_integer_,
+      dense_rank(desc(disparity_spread))
+    )
+  ) %>%
+  ungroup()
+```
+
+```{r}
+# Save outputs
+saveRDS(
+  state_exit_disp_ranked,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_exit_disparity_spread_log_or_ranked.rds"
+)
+
+write.csv(
+  state_exit_disp_ranked,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_exit_disparity_spread_log_or_ranked.csv",
+  row.names = FALSE
+)
+```
+
+✅ **Step 4: Prepare a heatmap-ready table (gradient scale, gray for suppressed)**\
+
+This step gets your ranked disparity data ready for a **continuous gradient heatmap**. It keeps the true disparity values for interpretation, but creates a **capped version used only for color scaling** so extreme cases don’t flatten everything else. States with suppressed results (NA) remain NA and will render as gray.
+
+```{r}
+# Input: ranked state × exit disparity table
+state_exit_disp_ranked <- readRDS(
+  "/Users/maiko/Desktop/capstone/data/analysis/state_exit_disparity_spread_log_or_ranked.rds"
+)
+```
+
+```{r}
+# Compute a cap for color scaling (95th percentile, excluding NA)
+cap_value <- quantile(
+  state_exit_disp_ranked$disparity_spread,
+  probs = 0.95,
+  na.rm = TRUE
+)
+```
+
+```{r}
+# Create heatmap-ready values
+state_exit_disp_heatmap <- state_exit_disp_ranked %>%
+  mutate(
+    # value used ONLY for color scaling
+    disparity_spread_capped = if_else(
+      is.na(disparity_spread),
+      NA_real_,
+      pmin(disparity_spread, cap_value)
+    )
+  )
+```
+
+```{r}
+# Save outputs
+saveRDS(
+  state_exit_disp_heatmap,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_exit_disparity_spread_log_or_heatmap_ready.rds"
+)
+
+write.csv(
+  state_exit_disp_heatmap,
+  "/Users/maiko/Desktop/capstone/data/analysis/state_exit_disparity_spread_log_or_heatmap_ready.csv",
+  row.names = FALSE
+)
+```
+
+✅ Step 5: Quick ggplot heatmap (state × exit category, gradient + gray for NA)\
+
+This creates a simple heatmap so you can visually scan patterns before doing any Shiny work. Each tile is a state × exit category. The fill uses your capped value (for color scaling), while NA tiles stay gray (suppressed due to flags / insufficient groups).
+
+```{r}
+# Input: heatmap-ready table (includes disparity_spread_capped + NA preserved)
+hm_df <- readRDS(
+  "/Users/maiko/Desktop/capstone/data/analysis/state_exit_disparity_spread_log_or_heatmap_ready.rds"
+)
+
+# Optional: order states by average capped disparity (helps readability)
+state_order <- hm_df %>%
+  group_by(state) %>%
+  summarise(avg_disp = mean(disparity_spread_capped, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(avg_disp)) %>%
+  pull(state)
+
+hm_df <- hm_df %>%
+  mutate(
+    state = factor(state, levels = state_order),
+    category = factor(category)  # keep your existing category order, if any
+  )
+
+ggplot(hm_df, aes(x = category, y = state, fill = disparity_spread_capped)) +
+  geom_tile(color = NA) +
+  scale_fill_gradient(na.value = "grey80") +
+  labs(
+    x = "Exit category",
+    y = "State",
+    fill = "Disparity\n(spread, capped)",
+    title = "Within-state racial disparity in EI exits (log OR spread)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
