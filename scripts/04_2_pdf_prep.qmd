@@ -1,0 +1,185 @@
+---
+title: "04_2_pdf_prep"
+author: "Maiko Hata"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(knitr)
+library(kableExtra)
+library(readxl)
+library(scales)
+library(reactable)
+library(dplyr)
+library(epitools)
+library(rio)
+library(corrplot)
+library(pwr)
+library(epitools)
+library(shiny)
+library(plotly)
+library(ggplot2)
+library(usmap)
+library(pdftools)
+library(purrr)
+```
+
+```{r}
+# pdf_path <- "/Users/maiko/Desktop/capstone/data/pdf/NIEER_funding.pdf"
+# 
+# page_293_text <- pdf_text(pdf_path)[293]
+# 
+# cat(
+#   paste(
+#     head(strsplit(page_293_text, "\n")[[1]], 40),
+#     collapse = "\n"
+#   )
+# )
+```
+
+✅ It was much easier to clean these pdfs in adobe, so I did.
+
+Step 1 — Confirm both table headers are present on the page
+
+```{r}
+# show all lines that mention "Table"
+# lines <- strsplit(page_293_text, "\n")[[1]]
+# lines[grepl("Table", lines)]
+
+```
+
+✅ Step 2 — Visually inspect the transition point
+
+This prints a small window of text *around* “Appendix Table 8”.
+
+```{r}
+# lines <- strsplit(page_293_text, "\n")[[1]]
+# 
+# table8_index <- grep("Appendix Table 8", lines)
+# 
+# start_line <- max(1, table8_index - 10)
+# end_line   <- min(length(lines), table8_index + 30)
+# 
+# lines[start_line:end_line]
+# 
+
+```
+
+✅ Small code chunk: reshape eligibility ABC to long form
+
+```{r}
+elig_path <- "/Users/maiko/Desktop/capstone/data/pdf/2023_eligibility_ABC_p1.csv"
+
+elig_raw <- readr::read_csv(elig_path, show_col_types = FALSE)
+
+# keep only the first 6 columns (A/B/C state + value)
+elig6 <- elig_raw |> select(1:6)
+
+# rename by position (robust to export weirdness)
+names(elig6) <- c(
+  "A_state", "A_rate",
+  "B_state", "B_rate",
+  "C_state", "C_rate"
+)
+
+elig_long <- elig6 |>
+  pivot_longer(
+    cols = everything(),
+    names_to = c("eligibility_category", ".value"),
+    names_pattern = "^([ABC])_(state|rate)$"
+  ) |>
+  transmute(
+    State = str_squish(state),
+    eligibility_category,
+    ei_participation_rate = as.numeric(rate)
+  ) |>
+  filter(!is.na(State), State != "")
+
+elig_long |> count(eligibility_category)
+elig_long |> slice(1:10)
+```
+
+✅ Save the long eligibility table (CSV first, then RDS)
+
+```{r}
+# paths
+csv_out <- "/Users/maiko/Desktop/capstone/data/analysis/eligibility_ABC_long.csv"
+rds_out <- "/Users/maiko/Desktop/capstone/data/analysis/eligibility_ABC_long.rds"
+
+# save CSV first (audit-friendly)
+readr::write_csv(elig_long, csv_out)
+
+# then save RDS (for workflow use)
+saveRDS(elig_long, rds_out)
+
+csv_out
+rds_out
+```
+
+✅ One small code chunk: load → light standardize → save (CSV then RDS)
+
+```{r}
+fund_path <- "/Users/maiko/Desktop/capstone/data/pdf/NIEER_funding_p293_table8_cleaned.csv"
+
+# Try comma-separated
+fund_comma <- read_csv(fund_path, show_col_types = FALSE)
+names(fund_comma)
+
+# Try tab-separated
+fund_tab <- read_tsv(fund_path, show_col_types = FALSE)
+names(fund_tab)
+```
+
+```{r}
+fund_path <- "/Users/maiko/Desktop/capstone/data/pdf/NIEER_funding_p293_table8_cleaned.csv"
+
+fund_df <- read_csv(
+  fund_path,
+  show_col_types = FALSE,
+  quote = ""   # <- key line: treat quotes as normal characters
+)
+
+names(fund_df)
+fund_df |> dplyr::slice(1:5)
+```
+
+✅ Save the NIEER funding table (CSV first, then RDS)
+
+```{r}
+fund_path <- "/Users/maiko/Desktop/capstone/data/pdf/NIEER_funding_p293_table8_cleaned.csv"
+
+fund_df <- readr::read_csv(
+  fund_path,
+  show_col_types = FALSE,
+  quote = ""
+) |>
+  clean_names()
+
+# If the state column isn't already named 'state', rename the first column to State
+if (!"state" %in% names(fund_df)) {
+  fund_df <- fund_df |> rename(State = 1)
+} else {
+  fund_df <- fund_df |> rename(State = state)
+}
+
+# quick sanity check
+fund_df |> slice(1:5)
+fund_df |> summarise(n_rows = n(), n_states = n_distinct(State))
+
+# save outputs (CSV first, then RDS)
+csv_out <- "/Users/maiko/Desktop/capstone/data/analysis/NIEER_funding_table8_clean.csv"
+rds_out <- "/Users/maiko/Desktop/capstone/data/analysis/NIEER_funding_table8_clean.rds"
+
+readr::write_csv(fund_df, csv_out)
+saveRDS(fund_df, rds_out)
+
+csv_out
+rds_out
+```
+
+```{r}
+
+```

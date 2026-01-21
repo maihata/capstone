@@ -1,0 +1,53 @@
+State,eligibility_category,ei_participation_rate
+New Mexico,A,4.75
+Massachusetts,B,4.63
+Alaska,C,2.11
+Washington,A,2.96
+West Virginia,B,3.73
+Missouri,C,1.66
+Pennsylvania,A,2.91
+Wyoming,B,3.32
+Connecticut,C,1.61
+Vermont,A,2.39
+North Dakota,B,3.26
+Idaho,C,1.61
+Kansas,A,2.02
+New Hampshire,B,2.72
+Louisiana,C,1.49
+District of Columbia,A,1.78
+Indiana,B,2.06
+Nevada,C,1.34
+Virginia,A,1.67
+South Dakota,B,1.68
+Maine,C,1.24
+Colorado,A,1.62
+Rhode Island,B,1.65
+South Carolina,C,1.2
+Maryland,A,1.49
+Illinois,B,1.39
+New Jersey,C,0.99
+Michigan,A,1.36
+Tennessee,B,1.38
+Oregon,C,0.96
+Texas,A,1.18
+California,B,1.22
+Arizona,C,0.86
+Delaware,A,1.05
+Utah,B,1.19
+Montana,C,0.75
+Wisconsin,A,1.01
+Ohio,B,1.11
+Oklahoma,C,0.74
+Iowa,A,0.89
+Nebraska,B,1.06
+Florida,C,0.66
+Hawaii,A,0.83
+North Carolina,B,0.93
+Georgia,C,0.64
+Alabama,A,0.79
+Minnesota,B,0.91
+Kentucky,C,0.38
+Arkansas,A,0.4
+New York,B,0.88
+Mississippi,B,0.68
+Puerto Rico,B,0.46
