@@ -9,8 +9,15 @@ ui <- fluidPage(
         inputId = "exit_cat",
         label   = "Exit category to preview",
         choices = NULL
+      ), 
+      
+      selectInput(
+        inputId = "state_sel",
+        label   = "State",
+        choices = NULL
       )
     ),
+
     
     mainPanel(
       br(),
@@ -26,11 +33,21 @@ server <- function(input, output, session) {
   
   df <- readRDS("../data/analysis/state_avg_or_by_race_category_all_years.rds")
   
+  updateSelectInput(
+    session,
+    inputId = "state_sel",
+    choices = sort(unique(df$state)),
+    selected = sort(unique(df$state))[1]
+  )
+  
   output$or_plot <- renderPlot({
     
-    req(input$exit_cat)
+    req(input$exit_cat, input$state_sel)
     
-    plot_df <- df[df$category == input$exit_cat, ]
+    plot_df <- df[
+      df$category == input$exit_cat &
+        df$state == input$state_sel,
+    ]
     
     plot_df$race_ethnicity <- factor(plot_df$race_ethnicity)
     
@@ -39,9 +56,13 @@ server <- function(input, output, session) {
       y = plot_df$race_ethnicity,
       xlab = "Odds Ratio",
       ylab = "Race / Ethnicity",
-      main = paste("Odds Ratios by Race/Ethnicity:", input$exit_cat)
+      main = paste(
+        "Odds Ratios by Race/Ethnicity:",
+        input$exit_cat,
+        "-",
+        input$state_sel
+      )
     )
-    
   })
   
   
@@ -64,10 +85,8 @@ server <- function(input, output, session) {
   output$data_preview <- renderTable({
     
     req(input$exit_cat)
-    
     show_df <- df[df$category == input$exit_cat,
                   c("state", "race_ethnicity", "or", "log_or", "ci_low", "ci_high")]
-    
     head(show_df, 10)
   })
   
