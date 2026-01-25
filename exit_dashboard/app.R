@@ -1,6 +1,8 @@
 library(shiny)
+library(bslib)
 
 ui <- fluidPage(
+  theme = bs_theme(bootswatch = "minty"),
   titlePanel("EI Exit Disparities — Prototype"),
   
   sidebarLayout(
