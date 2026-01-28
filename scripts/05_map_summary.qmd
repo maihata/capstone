@@ -1,0 +1,148 @@
+---
+title: "05_map_summary.qmd"
+author: "Maiko Hata"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(knitr)
+library(kableExtra)
+library(readxl)
+library(scales)
+library(reactable)
+library(dplyr)
+library(rio)
+library(corrplot)
+library(pwr)
+library(epitools)
+library(shiny)
+library(plotly)
+library(ggplot2)
+library(usmap)
+```
+
+```{r}
+df <- readRDS("../data/analysis/state_avg_or_by_race_category_all_years.rds")
+
+df2 <- df %>%
+  mutate(
+    state_abb = ifelse(
+      nchar(state) == 2,
+      state,
+      state.abb[match(state, state.name)]
+    ),
+    unreliable_row =
+      isTRUE(flag_zero_cell) |
+      isTRUE(flag_small_cell_5) |
+      !is.finite(log_or) |
+      abs(log_or) > log(10)
+  )
+
+```
+
+```{r}
+map_summary_df <- df2 %>%
+  filter(!is.na(state_abb)) %>%
+  group_by(category, state, state_abb) %>%
+  summarise(
+    unreliable_state = any(unreliable_row, na.rm = TRUE),
+
+    # define has_reliable first, then use it below
+    has_reliable = any(!unreliable_row & is.finite(log_or), na.rm = TRUE),
+
+    high_idx = ifelse(
+      has_reliable,
+      which.max(ifelse(unreliable_row, NA_real_, log_or)),
+      which.max(log_or)
+    ),
+    low_idx = ifelse(
+      has_reliable,
+      which.min(ifelse(unreliable_row, NA_real_, log_or)),
+      which.min(log_or)
+    ),
+
+    high_race = race_ethnicity[high_idx][1],
+    high_or   = or[high_idx][1],
+    high_log  = log_or[high_idx][1],
+
+    low_race  = race_ethnicity[low_idx][1],
+    low_or    = or[low_idx][1],
+    low_log   = log_or[low_idx][1],
+
+    map_value = ifelse(
+      has_reliable,
+      max(abs(log_or[!unreliable_row]), na.rm = TRUE),
+      max(abs(log_or), na.rm = TRUE)
+    ),
+
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # this is what your map should use for fill/z:
+    # unreliable => NA => can display as gray
+    map_value_plot = ifelse(unreliable_state, NA_real_, map_value),
+
+    hover_text = paste0(
+      "State: ", state,
+      "<br>Category: ", category,
+      "<br>Highest: ", high_race, " (OR ", round(high_or, 2), ", ln ", round(high_log, 2), ")",
+      "<br>Lowest: ",  low_race,  " (OR ", round(low_or, 2),  ", ln ", round(low_log, 2),  ")",
+      "<br>Max |ln(OR)|: ", round(map_value, 2),
+      "<br>Flag: ", ifelse(unreliable_state, "Caution: suppressed/small/extreme", "OK")
+    )
+  )
+
+saveRDS(map_summary_df, "../data/analysis/map_summary_logor_optionA.rds")
+
+write.csv(
+  map_summary_df,
+  "../data/analysis/map_summary_logor_optionA.csv",
+  row.names = FALSE)
+```
+
+```{r}
+cat_labels <- c(
+  dismissed       = "Dismissed (No Contact)",
+  moved_out       = "Moved Out",
+  not_determined  = "Not Determined",
+  not_eligible    = "Not Eligible",
+  part_b_eligible = "Part B Eligible",
+  withdrawn       = "Withdrawn"
+)
+
+# per-state rule: if there is at least one reliable category, pick only from reliable
+state_choice_rule <- map_summary_df %>%
+  group_by(state, state_abb) %>%
+  summarise(has_any_reliable = any(unreliable_state == FALSE), .groups = "drop")
+
+welcome_map_df <- map_summary_df %>%
+  left_join(state_choice_rule, by = c("state", "state_abb")) %>%
+  group_by(state, state_abb) %>%
+  filter(ifelse(has_any_reliable, unreliable_state == FALSE, TRUE)) %>%
+  slice_max(order_by = map_value, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(
+    category_label = unname(cat_labels[category]),
+    # for the welcome map, also make gray possible if the chosen row is unreliable
+    map_value_plot = ifelse(unreliable_state, NA_real_, map_value),
+    hover_text = paste0(
+      "State: ", state,
+      "<br>Category: ", category_label,
+      "<br>Highest: ", high_race, " (OR ", round(high_or, 2), ", ln ", round(high_log, 2), ")",
+      "<br>Lowest: ",  low_race,  " (OR ", round(low_or, 2),  ", ln ", round(low_log, 2),  ")",
+      "<br>Max |ln(OR)| (across categories): ", round(map_value, 2),
+      "<br>Flag: ", ifelse(unreliable_state, "Caution: suppressed/small/extreme", "OK")
+    )
+  )
+
+saveRDS(welcome_map_df, "../data/analysis/welcome_map_logor_optionA.rds")
+
+write.csv(
+  welcome_map_df,
+  "../data/analysis/welcome_map_logor_optionA.csv",
+  row.names = FALSE
+)
+```
