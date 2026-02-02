@@ -1,35 +1,70 @@
 library(shiny)
 library(bslib)
-library(dplyr)
 library(plotly)
+library(ggplot2)
+library(dplyr)
 
-ui <- fluidPage(
+ui <- page_navbar(
+  title = "Maiko Hata",
   theme = bs_theme(bootswatch = "minty"),
-  titlePanel("EI Exit Disparities — Prototype"),
-  
-  sidebarLayout(
-    sidebarPanel(
-      selectInput(
-        inputId = "exit_cat",
-        label   = "Exit Category",
-        choices = NULL,
-        selected = "largest"   # NEW: default is largest disparity
+
+  navbar_options = navbar_options(
+    bg = "#78C2AD",
+    fg = "white"
+  ),
+
+  nav_panel(
+    "Home",
+    sidebarLayout(
+      sidebarPanel(
+        selectInput(
+          inputId = "exit_cat",
+          label   = "Exit Category",
+          choices = NULL,
+          selected = "largest"
+        ),
+        selectInput(
+          inputId = "state_sel",
+          label   = "State",
+          choices = NULL
+        )
       ),
-      
-      selectInput(
-        inputId = "state_sel",
-        label   = "State",
-        choices = NULL
+      mainPanel(
+        plotlyOutput("map_plot", height = "600px"),
+        br(),
+        plotOutput("or_plot")
       )
-    ),
-    
-    mainPanel(
-      plotlyOutput("map_plot", height = "600px"),
-      br(),
-      plotOutput("or_plot")
+    )
+  ),
+
+  nav_panel(
+    "About",
+    div(
+      style = "max-width: 900px; padding-top: 1rem;",
+      h2("About the Project"),
+      p("About text goes here.")
+    )
+  ),
+
+  nav_panel(
+    "Using the Dashboard",
+    div(
+      style = "max-width: 900px; padding-top: 1rem;",
+      h2("Using the Dashboard"),
+      p("Instructions go here.")
+    )
+  ),
+
+  nav_panel(
+    "About Maiko",
+    div(
+      style = "max-width: 900px; padding-top: 1rem;",
+      h2("About Maiko"),
+      p("Bio goes here.")
     )
   )
 )
+
 
 server <- function(input, output, session) {
   
