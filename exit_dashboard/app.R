@@ -14,7 +14,7 @@ no_nav_lines <- tags$style(HTML("
 "))
 
 ui <- page_navbar(
-  title = "Maiko Hata",
+  title = "Maiko Hata's EI Exit Dashboard",
   theme = bs_theme(bootswatch = "minty"),
   header = no_nav_lines, 
   

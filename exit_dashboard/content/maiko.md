@@ -5,5 +5,5 @@ Hi! I’m Maiko ([pronounced “Mike-oh”](https://namedrop.io/maikohata)). I a
 はじめまして！療育・自閉症のスペシャリストとして米国オレゴン州で働いている 畑 麻衣子です。オレゴン大学の博士課程では、療育や早期発達支援に関する教育機会の違いや格差をテーマに、R言語でデータの分析と可視化に取り組みました。自閉症など発達に特性のある子どもとその保護者への支援（コーチング）、ユニバーサルデザインを取り入れた教育実践、教員養成に関する研究にも力を入れています。大阪高槻出身、大阪弁が恋しいです。詳しくは [About me](https://maihata.github.io/finalproj/about.html) と [Projects](https://maihata.github.io/finalproj/posts.html) 、[履歴書](https://maihata.github.io/finalproj/images/Maiko_CV_25.pdf)をご覧ください。[LinkedIn](https://www.linkedin.com/in/maikohata/) と[Email](mailto:maikohatadelaney@gmail.com) は、こちらからどうぞ。
 
 ::: {style="text-align: center;"}
-<img src="maiko_in_kimono_circle.png" width="200"/>
+<img src="maiko_in_kimono_circle.png" width="250"/>
 :::

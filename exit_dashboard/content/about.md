@@ -13,6 +13,6 @@ For readers interested in additional context, including the conceptual grounding
 Thank you for taking the time to visit and engage with this project!
 
 <div style="text-align: center;">
-  <img src="duck.png" width="320">
+  <img src="duck.png" width="250">
 </div>
 

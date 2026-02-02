@@ -1,4 +1,4 @@
-## Navigating the Dashboard
+## Using the Dashboard
 
 The main visualization displays, for each state, the largest observed disparity across the included exit categories. This approach helps highlight where inequities are most pronounced within a state, rather than requiring users to click through multiple maps or tables. Hover and selection features allow users to explore which exit category and population group contribute most strongly to the displayed disparity.
 
