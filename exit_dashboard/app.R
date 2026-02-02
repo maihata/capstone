@@ -4,15 +4,25 @@ library(plotly)
 library(ggplot2)
 library(dplyr)
 
+no_nav_lines <- tags$style(HTML("
+  .navbar-nav > li > a {
+    border: none !important;
+  }
+  .navbar-nav {
+    border-bottom: none !important;
+  }
+"))
+
 ui <- page_navbar(
   title = "Maiko Hata",
   theme = bs_theme(bootswatch = "minty"),
-
+  header = no_nav_lines, 
+  
   navbar_options = navbar_options(
     bg = "#78C2AD",
     fg = "white"
   ),
-
+  
   nav_panel(
     "Home",
     sidebarLayout(
@@ -36,31 +46,28 @@ ui <- page_navbar(
       )
     )
   ),
-
+  
   nav_panel(
     "About",
     div(
       style = "max-width: 900px; padding-top: 1rem;",
-      h2("About the Project"),
-      p("About text goes here.")
+      includeMarkdown("content/about.md")
     )
   ),
-
+  
   nav_panel(
     "Using the Dashboard",
     div(
       style = "max-width: 900px; padding-top: 1rem;",
-      h2("Using the Dashboard"),
-      p("Instructions go here.")
+      includeMarkdown("content/using.md")
     )
   ),
-
+  
   nav_panel(
     "About Maiko",
     div(
       style = "max-width: 900px; padding-top: 1rem;",
-      h2("About Maiko"),
-      p("Bio goes here.")
+      includeMarkdown("content/maiko.md")
     )
   )
 )
