@@ -71,12 +71,20 @@ This prints a small window of text *around* “Appendix Table 8”.
 ✅ Small code chunk: reshape eligibility ABC to long form
 
 ```{r}
-elig_path <- "/Users/maiko/Desktop/capstone/data/pdf/2023_eligibility_ABC_p1.csv"
+
+```
+
+```{r}
+# Eligibility participation rates
+# NOTE: corrected to read page 3 (_p3), not page 1 (_p1)
+
+elig_path <- "/Users/maiko/Desktop/capstone/data/pdf/2023_eligibility_ABC_p3.csv"
 
 elig_raw <- readr::read_csv(elig_path, show_col_types = FALSE)
 
 # keep only the first 6 columns (A/B/C state + value)
-elig6 <- elig_raw |> select(1:6)
+elig6 <- elig_raw |> 
+  select(1:6)
 
 # rename by position (robust to export weirdness)
 names(elig6) <- c(
@@ -100,6 +108,7 @@ elig_long <- elig6 |>
 
 elig_long |> count(eligibility_category)
 elig_long |> slice(1:10)
+
 ```
 
 ✅ Save the long eligibility table (CSV first, then RDS)

@@ -3,6 +3,7 @@ library(bslib)
 library(plotly)
 library(ggplot2)
 library(dplyr)
+library(markdown)
 
 no_nav_lines <- tags$style(HTML("
   .navbar-nav > li > a {
@@ -13,46 +14,55 @@ no_nav_lines <- tags$style(HTML("
   }
 "))
 
+# --- Dashboard UI chunk (moved out so it’s easy to reuse) ---
+dashboard_ui <- sidebarLayout(
+  sidebarPanel(
+    selectInput(
+      inputId = "exit_cat",
+      label   = "Exit Category",
+      choices = NULL,
+      selected = "largest"
+    ),
+    selectInput(
+      inputId = "state_sel",
+      label   = "State",
+      choices = NULL
+    ), 
+    hr(), 
+    helpText(
+      "Children may exit EI for different reasons, including eligibility determinations at or before age three, family decisions, relocation, or loss of contact. These exits reflect system-level conditions shaped by state policies and data reporting practices, and should not be interpreted as family deficits, lack of dedication, or the true needs of children."
+    )
+  ),
+  mainPanel(
+    plotlyOutput("map_plot", height = "600px"),
+    br(),
+    plotOutput("or_plot")
+  )
+)
+
 ui <- page_navbar(
   title = "Maiko Hata's EI Exit Dashboard",
   theme = bs_theme(bootswatch = "minty"),
-  header = no_nav_lines, 
+  header = no_nav_lines,
   
   navbar_options = navbar_options(
     bg = "#78C2AD",
     fg = "white"
   ),
   
+  # NEW: Landing page = About the Project
   nav_panel(
     "Home",
-    sidebarLayout(
-      sidebarPanel(
-        selectInput(
-          inputId = "exit_cat",
-          label   = "Exit Category",
-          choices = NULL,
-          selected = "largest"
-        ),
-        selectInput(
-          inputId = "state_sel",
-          label   = "State",
-          choices = NULL
-        )
-      ),
-      mainPanel(
-        plotlyOutput("map_plot", height = "600px"),
-        br(),
-        plotOutput("or_plot")
-      )
-    )
-  ),
-  
-  nav_panel(
-    "About",
     div(
       style = "max-width: 900px; padding-top: 1rem;",
       includeMarkdown("content/about.md")
     )
+  ),
+  
+  # NEW: Dashboard lives in its own tab
+  nav_panel(
+    "EI Exit Dashboard",
+    dashboard_ui
   ),
   
   nav_panel(
@@ -72,7 +82,6 @@ ui <- page_navbar(
   )
 )
 
-
 server <- function(input, output, session) {
   
   df <- readRDS("../data/analysis/state_avg_or_by_race_category_all_years.rds")
@@ -90,7 +99,7 @@ server <- function(input, output, session) {
     session,
     inputId = "exit_cat",
     choices = c(
-      "Largest Disparity Category (All)" = "largest",  # NEW option
+      "Largest Disparity Category (All)" = "largest",
       "Dismissed (No Contact)"           = "dismissed",
       "Moved Out"                        = "moved_out",
       "Not Determined"                   = "not_determined",
@@ -98,10 +107,9 @@ server <- function(input, output, session) {
       "Part B Eligible"                  = "part_b_eligible",
       "Withdrawn"                        = "withdrawn"
     ),
-    selected = "largest"  # NEW default
+    selected = "largest"
   )
   
-  # NEW: central reactive that decides which map data to use
   map_data <- reactive({
     req(input$exit_cat)
     
@@ -116,7 +124,6 @@ server <- function(input, output, session) {
     
     req(input$exit_cat, input$state_sel)
     
-    # NEW: if "largest" is selected, use that state's chosen category
     if (input$exit_cat == "largest") {
       chosen_cat <- welcome_df %>%
         filter(state == input$state_sel) %>%
@@ -153,7 +160,7 @@ server <- function(input, output, session) {
   
   output$map_plot <- renderPlotly({
     
-    plot_df <- map_data()   # NEW: unified data source
+    plot_df <- map_data()
     
     bad_df  <- plot_df[plot_df$unreliable_state == TRUE, ]
     good_df <- plot_df[plot_df$unreliable_state == FALSE, ]
