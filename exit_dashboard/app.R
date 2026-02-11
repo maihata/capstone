@@ -14,43 +14,73 @@ no_nav_lines <- tags$style(HTML("
   }
 "))
 
-# --- Dashboard UI chunk (moved out so it’s easy to reuse) ---
-dashboard_ui <- sidebarLayout(
-  sidebarPanel(
-    selectInput(
-      inputId = "exit_cat",
-      label   = "Exit Category",
-      choices = NULL,
-      selected = "largest"
+  dashboard_ui <- fluidPage(
+    
+    # ---- TOP CONTROLS ----
+    fluidRow(
+      column(
+        width = 4,
+        selectInput(
+          inputId = "exit_cat",
+          label   = "Exit Category",
+          choices = NULL,
+          selected = "largest"
+        )
+      ),
+      column(
+        width = 4,
+        selectInput(
+          inputId = "state_sel",
+          label   = "State",
+          choices = NULL
+        )
+      )
     ),
-    selectInput(
-      inputId = "state_sel",
-      label   = "State",
-      choices = NULL
-    ), 
-    hr(), 
-    helpText(
-      "Children may exit EI for different reasons, including eligibility determinations at or before age three, family decisions, relocation, or loss of contact. These exits reflect system-level conditions shaped by state policies and data reporting practices, and should not be interpreted as family deficits, lack of dedication, or the true needs of children."
-    )
-  ),
-  mainPanel(
-    plotlyOutput("map_plot", height = "600px"),
+    
+    fluidRow(
+      column(
+        width = 12,
+        helpText(
+          "Children may exit EI for different reasons, including eligibility determinations at or before age three, family decisions, relocation, or loss of contact. These exits reflect system-level conditions shaped by state policies and data reporting practices, and should not be interpreted as family deficits, lack of dedication, or the true needs of children."
+        )
+      )
+    ),
+    
     br(),
-    plotOutput("or_plot")
+    
+    # ---- MAP (full width) ----
+    fluidRow(
+      column(
+        width = 12,
+        plotlyOutput("map_plot", height = "600px")
+      )
+    ),
+    
+    br(),
+    
+    # ---- POLICY CONTEXT BELOW ----
+    fluidRow(
+      column(
+        width = 12,
+        bslib::card(
+          bslib::card_header("Policy context"),
+          bslib::card_body(
+            uiOutput("policy_context_card")
+          )
+        )
+      )
+    )
+    
   )
-)
-
+  
 ui <- page_navbar(
   title = "Maiko Hata's EI Exit Dashboard",
   theme = bs_theme(bootswatch = "minty"),
   header = no_nav_lines,
-  
   navbar_options = navbar_options(
     bg = "#78C2AD",
     fg = "white"
   ),
-  
-  # NEW: Landing page = About the Project
   nav_panel(
     "Home",
     div(
@@ -58,13 +88,10 @@ ui <- page_navbar(
       includeMarkdown("content/about.md")
     )
   ),
-  
-  # NEW: Dashboard lives in its own tab
   nav_panel(
     "EI Exit Dashboard",
     dashboard_ui
   ),
-  
   nav_panel(
     "Using the Dashboard",
     div(
@@ -72,7 +99,6 @@ ui <- page_navbar(
       includeMarkdown("content/using.md")
     )
   ),
-  
   nav_panel(
     "About Maiko",
     div(
@@ -112,7 +138,6 @@ server <- function(input, output, session) {
   
   map_data <- reactive({
     req(input$exit_cat)
-    
     if (input$exit_cat == "largest") {
       welcome_df
     } else {
@@ -120,6 +145,42 @@ server <- function(input, output, session) {
     }
   })
   
+  output$or_plot <- renderPlot({
+    
+    req(input$exit_cat, input$state_sel)
+    
+    if (input$exit_cat == "largest") {
+      chosen_cat <- welcome_df %>%
+        filter(state == input$state_sel) %>%
+        pull(category)
+      
+      if (length(chosen_cat) == 0 || is.na(chosen_cat[1])) return(NULL)
+      cat_to_plot <- chosen_cat[1]
+    } else {
+      cat_to_plot <- input$exit_cat
+    }
+    
+    plot_df <- df %>%
+      filter(category == cat_to_plot,
+             state == input$state_sel)
+    
+    if (nrow(plot_df) == 0) return(NULL)
+    
+    plot(
+      x = plot_df$or,
+      y = factor(plot_df$race_ethnicity),
+      xlab = "Odds Ratio",
+      ylab = "Race / Ethnicity",
+      main = paste(
+        "Odds Ratios by Race/Ethnicity:",
+        cat_to_plot,
+        "-",
+        input$state_sel
+      )
+    )
+  })
+  
+  # --- REAL MAP (Magma + gray suppressed) ---
   output$or_plot <- renderPlot({
     
     req(input$exit_cat, input$state_sel)
@@ -142,11 +203,9 @@ server <- function(input, output, session) {
     
     if (nrow(plot_df) == 0) return(NULL)
     
-    plot_df$race_ethnicity <- factor(plot_df$race_ethnicity)
-    
     plot(
       x = plot_df$or,
-      y = plot_df$race_ethnicity,
+      y = factor(plot_df$race_ethnicity),
       xlab = "Odds Ratio",
       ylab = "Race / Ethnicity",
       main = paste(
@@ -158,6 +217,7 @@ server <- function(input, output, session) {
     )
   })
   
+  # --- REAL MAP (Magma + gray suppressed) ---
   output$map_plot <- renderPlotly({
     
     plot_df <- map_data()
@@ -186,19 +246,15 @@ server <- function(input, output, session) {
         z = ~map_value,
         text = ~hover_text,
         hoverinfo = "text",
-        colorscale = list(
-          list(0, "green"),
-          list(0.5, "yellow"),
-          list(1, "red")
-        ),
+        colorscale = "Viridis",
+        colorbar = list(title = "Log OR"),
         marker = list(line = list(color = "white", width = 0.5))
       ) %>%
       layout(
         geo = list(scope = "usa"),
         margin = list(l = 0, r = 0, t = 10, b = 0)
       )
-  })
+  })}
   
-}
 
 shinyApp(ui = ui, server = server)
