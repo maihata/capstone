@@ -1,11 +1,17 @@
 ## Using the Dashboard
 
-The main visualization displays, for each state, the largest observed disparity across the included exit categories. This approach helps highlight where inequities are most pronounced within a state, rather than requiring users to click through multiple maps or tables. Hover and selection features allow users to explore which exit category and population group contribute most strongly to the displayed disparity.
+The interactive map displays, for each state, the largest observed disparity across the included exit categories. This helps surface where differences are most pronounced within a state without requiring you to click through multiple separate maps or tables.
 
-At this stage, the dashboard prioritizes analytic clarity and accessibility over completeness. Some planned components, such as an implications or policy context panel, are still in development and will be added in a future iteration. For now, this version is best understood as an analytic prototype that emphasizes transparency and interpretability, while laying important groundwork for integrating policy-relevant context over time.
+You can:
 
-I invite you to explore more [about me](https://maihata.github.io/finalproj/about.html), browse [my current projects](https://maihata.github.io/finalproj/posts.html), and take a look at my [professional history](https://maihata.github.io/finalproj/images/Maiko_CV_25.pdf). Please don’t hesitate to reach out via [LinkedIn page](https://www.linkedin.com/in/maikohata/) or [Email](mailto:maikohatadelaney@gmail.com), I would love to hear from you!
+* Use the Exit Category dropdown to focus on a specific type of exit
+* Use the State dropdown or click directly on the map to select a state
+* Hover over a state to see additional details
 
-::: {style="text-align: center;"}
-<img src="shinyapp_icon.png" width="120"/>
-:::
+Below the map, the State Highlights section summarizes key policy information for the selected state, including eligibility criteria, participation rate, and funding structure.
+
+This dashboard emphasizes analytic clarity and transparency. The goal is to make patterns visible while keeping interpretation grounded in system-level structures rather than individual-level assumptions.
+
+I invite you to learn more [about me](https://maihata.github.io/finalproj/about.html), browse [my current projects](https://maihata.github.io/finalproj/posts.html), or view my [professional history](https://maihata.github.io/finalproj/images/Maiko_CV_25.pdf).
+
+You’re also welcome to connect via [LinkedIn](https://www.linkedin.com/in/maikohata/) or [email](mailto:maikohatadelaney@gmail.com).
