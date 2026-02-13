@@ -12,6 +12,4 @@ Below the map, the State Highlights section summarizes key policy information fo
 
 This dashboard emphasizes analytic clarity and transparency. The goal is to make patterns visible while keeping interpretation grounded in system-level structures rather than individual-level assumptions.
 
-I invite you to learn more [about me](https://maihata.github.io/finalproj/about.html), browse [my current projects](https://maihata.github.io/finalproj/posts.html), or view my [professional history](https://maihata.github.io/finalproj/images/Maiko_CV_25.pdf).
-
-You’re also welcome to connect via [LinkedIn](https://www.linkedin.com/in/maikohata/) or [email](mailto:maikohatadelaney@gmail.com).
+For more, please visit [about me](https://maihata.github.io/finalproj/about.html), browse [my projects](https://maihata.github.io/finalproj/posts.html), or view my [professional history](https://maihata.github.io/finalproj/images/Maiko_CV_26.pdf). You are also invited to connect with me on [LinkedIn](https://www.linkedin.com/in/maikohata/) or by [email](mailto:maikohatadelaney@gmail.com).
