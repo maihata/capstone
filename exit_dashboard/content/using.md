@@ -1,6 +1,6 @@
 ## Using the Dashboard
 
-The interactive map displays, for each state, the largest observed disparity across the included exit categories. This helps surface where differences are most pronounced within a state without requiring you to click through multiple separate maps or tables.
+The interactive map displays, for each state, the largest observed disparity across the included exit categories. Disparities are identified using the natural logarithm of the odds ratio (log OR), which allows differences above and below 1 to be treated symmetrically. In other words, an odds ratio of 2.0 and an odds ratio of 0.5 are considered equally far from 1 (no difference), just in opposite directions.This helps surface where differences are most pronounced within a state without requiring you to click through multiple separate maps or tables.
 
 You can:
 

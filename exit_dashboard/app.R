@@ -124,17 +124,19 @@ server <- function(input, output, session) {
     tags$img(
       src = selected_home_image,
       style = paste(
-        "width:280px;",
-        "height:280px;",
+        "width:240px;",
+        "height:240px;",
         "border-radius:50%;",
         "object-fit:cover;",
         "display:block;",
         "margin-left:auto;",
         "margin-right:auto;",
-        "margin-top:25px;"
+        "margin-top:25px;",
+        "margin-bottom:25px;"
       )
     )
   })
+  
   
   # --- inputs ---
   updateSelectInput(
