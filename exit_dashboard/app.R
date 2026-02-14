@@ -5,16 +5,11 @@ library(dplyr)
 library(markdown)
 
 no_nav_lines <- tags$style(HTML("
-  .navbar-nav > li > a {
-    border: none !important;
-  }
-  .navbar-nav {
-    border-bottom: none !important;
-  }
+  .navbar-nav > li > a { border: none !important; }
+  .navbar-nav { border-bottom: none !important; }
 "))
 
 dashboard_ui <- fluidPage(
-  
   fluidRow(
     column(
       width = 4,
@@ -47,10 +42,7 @@ dashboard_ui <- fluidPage(
   br(),
   
   fluidRow(
-    column(
-      width = 12,
-      plotlyOutput("map_plot", height = "350px")
-    )
+    column(width = 12, plotlyOutput("map_plot", height = "350px"))
   ),
   
   br(),
@@ -60,9 +52,7 @@ dashboard_ui <- fluidPage(
       width = 12,
       bslib::card(
         bslib::card_header("State Snapshot"),
-        bslib::card_body(
-          uiOutput("policy_context_card")
-        )
+        bslib::card_body(uiOutput("policy_context_card"))
       )
     )
   )
@@ -72,10 +62,7 @@ ui <- page_navbar(
   title = "Maiko Hata's EI Exit Dashboard",
   theme = bs_theme(bootswatch = "minty"),
   header = no_nav_lines,
-  navbar_options = navbar_options(
-    bg = "#78C2AD",
-    fg = "white"
-  ),
+  navbar_options = navbar_options(bg = "#78C2AD", fg = "white"),
   
   nav_panel(
     "Home",
@@ -109,13 +96,32 @@ ui <- page_navbar(
 
 server <- function(input, output, session) {
   
+  
+  # -------------------------
+  # Data loads (must exist inside the app folder)
+  # -------------------------
   df         <- readRDS("data/analysis/state_avg_or_by_race_category_all_years.rds")
   map_df     <- readRDS("data/analysis/map_summary_logor_optionA.rds")
   welcome_df <- readRDS("data/analysis/welcome_map_logor_optionA.rds")
   elig_df    <- readRDS("data/analysis/eligibility_ABC_long.rds")
   funding_df <- readRDS("data/analysis/NIEER_funding_table8_clean.rds")
   
-  # --- random home image (one per session) ---
+  # -------------------------
+  # Disparity extremes (single source of truth for snapshot)
+  # -------------------------
+  disp_path <- "data/analysis/state_category_disparity_spread_log_or_with_race_extremes.rds"
+  stopifnot(file.exists(disp_path))
+  
+  disp_extremes <- readRDS(disp_path)
+  disp_extremes$or_high <- exp(disp_extremes$log_or_high)
+  disp_extremes$or_low  <- exp(disp_extremes$log_or_low)
+  
+  disp_extremes$race_high[disp_extremes$race_high == "MU_N"] <- "Multiracial"
+  disp_extremes$race_low[disp_extremes$race_low == "MU_N"]  <- "Multiracial"
+  
+  # -------------------------
+  # Random home image (one per session)
+  # -------------------------
   home_images <- list.files("www", pattern = "_circle\\.png$", full.names = FALSE)
   home_images <- sort(home_images)[1:min(5, length(home_images))]
   selected_home_image <- sample(home_images, 1)
@@ -137,8 +143,9 @@ server <- function(input, output, session) {
     )
   })
   
-  
-  # --- inputs ---
+  # -------------------------
+  # Inputs
+  # -------------------------
   updateSelectInput(
     session,
     inputId = "state_sel",
@@ -161,7 +168,9 @@ server <- function(input, output, session) {
     selected = "largest"
   )
   
-  # --- map data ---
+  # -------------------------
+  # Map data
+  # -------------------------
   map_data <- reactive({
     req(input$exit_cat)
     if (input$exit_cat == "largest") {
@@ -172,7 +181,6 @@ server <- function(input, output, session) {
   })
   
   output$map_plot <- renderPlotly({
-    
     plot_df <- map_data()
     req(nrow(plot_df) > 0)
     
@@ -231,7 +239,9 @@ server <- function(input, output, session) {
     updateSelectInput(session, "state_sel", selected = clicked_name[1])
   })
   
-  # --- state snapshot with top-2 category disparities + top-2 race within each ---
+  # -------------------------
+  # State snapshot (locked to race_high / race_low from disp_extremes)
+  # -------------------------
   output$policy_context_card <- renderUI({
     req(input$state_sel, input$exit_cat)
     
@@ -247,12 +257,13 @@ server <- function(input, output, session) {
         TRUE ~ gsub("_", " ", x)
       )
     }
+    
     fmt_or <- function(x) sprintf("%.2f", x)
     
     # eligibility + participation
     row_elig <- elig_df %>%
-      dplyr::filter(State == input$state_sel) %>%
-      dplyr::slice(1)
+      filter(State == input$state_sel) %>%
+      slice(1)
     
     elig_cat  <- if (nrow(row_elig) == 0) NA_character_ else row_elig$eligibility_category[[1]]
     part_rate <- if (nrow(row_elig) == 0) NA_real_      else row_elig$ei_participation_rate[[1]]
@@ -265,16 +276,24 @@ server <- function(input, output, session) {
       TRUE ~ "eligibility category information is available but not recognized"
     )
     
+    national_avg <- 4.20  # 2023 national EI participation rate
+    
     part_phrase <- if (is.na(part_rate)) {
       "EI participation data are not available"
     } else {
-      paste0("EI participation is ", sprintf("%.2f", part_rate), "%")
+      paste0(
+        "EI participation is ",
+        sprintf("%.2f", part_rate),
+        "% (national average: ",
+        sprintf("%.2f", national_avg),
+        "% in 2023)"
+      )
     }
     
     # funding + insurance
     row_fund <- funding_df %>%
-      dplyr::filter(State == input$state_sel) %>%
-      dplyr::slice(1)
+      filter(State == input$state_sel) %>%
+      slice(1)
     
     fund_val <- if (nrow(row_fund) == 0) NA_character_
     else row_fund$primary_funding_source_for_early_intervention[[1]]
@@ -298,28 +317,17 @@ server <- function(input, output, session) {
       TRUE ~ ""
     )
     
-    # disparity pool: reportable rows only
-    disp_pool <- df %>%
-      dplyr::filter(
-        state == input$state_sel,
-        flag_zero_cell == FALSE,
-        flag_small_cell_5 == FALSE,
-        !is.na(or), is.finite(or), or > 0,
-        !is.na(log_or), is.finite(log_or)
-      ) %>%
-      dplyr::mutate(strength = abs(log_or))
-    
+    # categories for snapshot
     top_categories <- if (input$exit_cat == "largest") {
-      map_df %>%
-        dplyr::filter(state == input$state_sel) %>%
-        dplyr::arrange(dplyr::desc(abs(map_value))) %>%
-        dplyr::slice_head(n = 2) %>%
-        dplyr::pull(category)
+      disp_extremes %>%
+        filter(state == input$state_sel) %>%
+        filter(!is.na(disparity_spread), is.finite(disparity_spread)) %>%
+        arrange(desc(disparity_spread)) %>%
+        slice_head(n = 2) %>%
+        pull(category)
     } else {
       input$exit_cat
     }
-    
-
     
     disp_text <- ""
     
@@ -332,24 +340,31 @@ server <- function(input, output, session) {
         cat_i <- top_categories[[i]]
         if (is.na(cat_i)) next
         
-        top_races <- disp_pool %>%
-          dplyr::filter(category == cat_i) %>%
-          dplyr::arrange(dplyr::desc(strength)) %>%
-          dplyr::slice_head(n = 2)
+        row_cat <- disp_extremes %>%
+          filter(state == input$state_sel, category == cat_i) %>%
+          slice(1)
         
-        if (nrow(top_races) == 0) next
+        if (nrow(row_cat) == 0) next
         
-        bullets <- paste0("\u2022 ", top_races$race_ethnicity, ": OR ", fmt_or(top_races$or))
+        race_hi <- row_cat$race_high[[1]]
+        race_lo <- row_cat$race_low[[1]]
+        or_hi   <- row_cat$or_high[[1]]
+        or_lo   <- row_cat$or_low[[1]]
+        
+        bullets <- c(
+          paste0("\u2022 ", race_hi, ": OR ", fmt_or(or_hi)),
+          paste0("\u2022 ", race_lo, ": OR ", fmt_or(or_lo))
+        )
         
         header_line <- if (i == 1) {
           paste0(
             "In ", input$state_sel,
-            ', the largest differences in odds are observed in the "',
+            ', the largest between-group OR disparity is observed in the "',
             pretty_cat(cat_i), '" category:'
           )
         } else {
           paste0(
-            'The second largest differences are observed in the "',
+            'The largest between-group OR disparity is also observed in the "',
             pretty_cat(cat_i), '" category:'
           )
         }
@@ -376,3 +391,4 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui = ui, server = server)
+
