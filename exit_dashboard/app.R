@@ -150,7 +150,7 @@ server <- function(input, output, session) {
     session,
     inputId = "state_sel",
     choices = sort(unique(df$state)),
-    selected = sort(unique(df$state))[1]
+    selected = "Oregon"
   )
   
   updateSelectInput(
