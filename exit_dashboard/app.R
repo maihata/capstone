@@ -148,8 +148,16 @@ server <- function(input, output, session) {
   
   
   output$home_image <- renderUI({
+    
+    # Generate readable alt text from filename
+    alt_text <- selected_home_image
+    alt_text <- gsub("_circle\\.png$", "", alt_text)
+    alt_text <- gsub("_", " ", alt_text)
+    alt_text <- tools::toTitleCase(alt_text)
+    
     tags$img(
       src = selected_home_image,
+      alt = alt_text,
       style = paste(
         "width:240px;",
         "height:240px;",
@@ -163,6 +171,7 @@ server <- function(input, output, session) {
       )
     )
   })
+  
   
   # -------------------------
   # Inputs
