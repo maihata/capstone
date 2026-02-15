@@ -59,6 +59,7 @@ dashboard_ui <- fluidPage(
 )
 
 ui <- page_navbar(
+  id = "main_nav",
   title = "Maiko Hata's EI Exit Dashboard",
   theme = bs_theme(bootswatch = "minty"),
   header = no_nav_lines,
@@ -70,10 +71,24 @@ ui <- page_navbar(
       style = "max-width: 900px; padding-top: 1rem;",
       fluidRow(
         column(width = 4, uiOutput("home_image")),
-        column(width = 8, includeMarkdown("content/about.md"))
+        column(
+          width = 8,
+          includeMarkdown("content/about.md"),
+          div(
+            style = "text-align: center; margin-top: 20px; margin-bottom: 20px;",
+            actionButton(
+              "go_dashboard",
+              "Explore the EI Exit Dashboard",
+              class = "btn-primary",
+              style = "padding: 8px 20px; font-size: 14px;"
+            )
+          )
+        )
       )
     )
   ),
+  
+  
   
   nav_panel("EI Exit Dashboard", dashboard_ui),
   
@@ -95,6 +110,10 @@ ui <- page_navbar(
 )
 
 server <- function(input, output, session) {
+
+  observeEvent(input$go_dashboard, {
+    updateNavbarPage(session, "main_nav", selected = "EI Exit Dashboard")
+  })
   
   
   # -------------------------
@@ -123,8 +142,10 @@ server <- function(input, output, session) {
   # Random home image (one per session)
   # -------------------------
   home_images <- list.files("www", pattern = "_circle\\.png$", full.names = FALSE)
-  home_images <- sort(home_images)[1:min(5, length(home_images))]
+  # Exclude specific image
+  home_images <- home_images[home_images != "maiko_in_kimono_circle.png"]
   selected_home_image <- sample(home_images, 1)
+  
   
   output$home_image <- renderUI({
     tags$img(
@@ -364,7 +385,7 @@ server <- function(input, output, session) {
           )
         } else {
           paste0(
-            'The largest between-group OR disparity is also observed in the "',
+            'Large between-group OR disparities are also observed in the "',
             pretty_cat(cat_i), '" category:'
           )
         }
