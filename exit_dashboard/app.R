@@ -177,54 +177,48 @@ server <- function(input, output, session) {
   # Build "largest" map layer using the SAME metric as State Snapshot (disparity_spread)
   # Robust join + NA protection to prevent crashes
   # -------------------------
-  # -------------------------
-  # Build "largest" map layer using the SAME metric as State Snapshot (disparity_spread)
-  # Robust join + NA protection + only show data note when flagged
-  # -------------------------
-  
   winners_spread <- disp_extremes %>%
     filter(!is.na(disparity_spread), is.finite(disparity_spread)) %>%
     group_by(state) %>%
     slice_max(order_by = disparity_spread, n = 1, with_ties = FALSE) %>%
-    ungroup() %>%
-    mutate(state_join = trimws(as.character(state))) %>%
-    transmute(
-      state_join,
-      category,
-      map_value = disparity_spread,
-      hover_text = paste0(
-        "State: ", state_join, "\n",
-        "Exit category with largest disparity: ", pretty_cat(category), "\n",
-        "Highest: ",
-        race_high, ": OR ", sprintf("%.2f", exp(log_or_high)),
-        " (ln ", sprintf("%.2f", log_or_high), ")\n",
-        "Lowest: ",
-        race_low, ": OR ", sprintf("%.2f", exp(log_or_low)),
-        " (ln ", sprintf("%.2f", log_or_low), ")\n",
-        "Largest within-category gap (ln OR): ",
-        sprintf("%.2f", disparity_spread)
-      )
-    )
+    ungroup()
   
+  # join on trimmed state names (prevents silent mismatches)
   welcome_df_fixed <- welcome_df %>%
     mutate(state_join = trimws(as.character(state))) %>%
     select(-any_of(c("category", "map_value", "hover_text"))) %>%
-    left_join(winners_spread, by = "state_join") %>%
+    left_join(
+      winners_spread %>%
+        mutate(state_join = trimws(as.character(state))) %>%
+        transmute(
+          state_join,
+          category,
+          map_value = disparity_spread,
+          hover_text = paste0(
+            "State: ", state_join, "\n",
+            "Exit category: ", pretty_cat(category), "\n\n",
+            "Most overrepresented group\n",
+            race_high, ": OR ", sprintf("%.2f", exp(log_or_high)),
+            " (ln ", sprintf("%.2f", log_or_high), ")\n\n",
+            "Most underrepresented group\n",
+            race_low, ": OR ", sprintf("%.2f", exp(log_or_low)),
+            " (ln ", sprintf("%.2f", log_or_low), ")\n\n",
+            "Largest within-category gap (ln OR): ",
+            sprintf("%.2f", disparity_spread)
+          )
+        ),
+      by = "state_join"
+    ) %>%
     mutate(
-      # prevent plotly issues if anything didn't match
+      # prevent plotly from choking on all-NA z or missing hover text
       map_value = ifelse(is.na(map_value), 0, map_value),
       hover_text = ifelse(
         is.na(hover_text),
         paste0(
           "State: ", state_join, "\n",
-          "Exit category with largest disparity: Not available"
+          "Exit category: Not available\n\n",
+          "Data flag: ", ifelse(isTRUE(unreliable_state), "Caution", "OK")
         ),
-        hover_text
-      ),
-      # only show the data note when flagged
-      hover_text = ifelse(
-        isTRUE(unreliable_state),
-        paste0(hover_text, "\n", "Data note: Interpret with caution"),
         hover_text
       )
     ) %>%
@@ -606,4 +600,3 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui = ui, server = server)
-
