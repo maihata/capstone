@@ -1,3 +1,5 @@
+# app.R
+
 library(shiny)
 library(bslib)
 library(plotly)
@@ -8,6 +10,24 @@ no_nav_lines <- tags$style(HTML("
   .navbar-nav > li > a { border: none !important; }
   .navbar-nav { border-bottom: none !important; }
 "))
+
+# -------------------------
+# Helpers (global)
+# -------------------------
+pretty_cat <- function(x) {
+  dplyr::case_when(
+    is.na(x) ~ "",
+    x == "dismissed"       ~ "Dismissed (No Contact)",
+    x == "moved_out"       ~ "Moved Out",
+    x == "not_determined"  ~ "Not Determined",
+    x == "not_eligible"    ~ "Not Eligible",
+    x == "part_b_eligible" ~ "Part B Eligible",
+    x == "withdrawn"       ~ "Withdrawn",
+    TRUE ~ gsub("_", " ", x)
+  )
+}
+
+fmt_or <- function(x) sprintf("%.2f", x)
 
 # -------------------------
 # Dashboard UI (reusable)
@@ -55,9 +75,7 @@ dashboard_ui <- fluidPage(
       width = 12,
       bslib::card(
         bslib::card_header("State Snapshot"),
-        bslib::card_body(
-          uiOutput("policy_context_card")
-        )
+        bslib::card_body(uiOutput("policy_context_card"))
       )
     )
   ),
@@ -69,9 +87,7 @@ dashboard_ui <- fluidPage(
       width = 12,
       bslib::card(
         bslib::card_header("Equity Implications"),
-        bslib::card_body(
-          uiOutput("equity_strategy_card")
-        )
+        bslib::card_body(uiOutput("equity_strategy_card"))
       )
     )
   )
@@ -158,11 +174,67 @@ server <- function(input, output, session) {
   disp_extremes$race_low[disp_extremes$race_low == "MU_N"]  <- "Multiracial"
   
   # -------------------------
+  # Build "largest" map layer using the SAME metric as State Snapshot (disparity_spread)
+  # Robust join + NA protection to prevent crashes
+  # -------------------------
+  # -------------------------
+  # Build "largest" map layer using the SAME metric as State Snapshot (disparity_spread)
+  # Robust join + NA protection + only show data note when flagged
+  # -------------------------
+  
+  winners_spread <- disp_extremes %>%
+    filter(!is.na(disparity_spread), is.finite(disparity_spread)) %>%
+    group_by(state) %>%
+    slice_max(order_by = disparity_spread, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
+    mutate(state_join = trimws(as.character(state))) %>%
+    transmute(
+      state_join,
+      category,
+      map_value = disparity_spread,
+      hover_text = paste0(
+        "State: ", state_join, "\n",
+        "Exit category with largest disparity: ", pretty_cat(category), "\n",
+        "Highest: ",
+        race_high, ": OR ", sprintf("%.2f", exp(log_or_high)),
+        " (ln ", sprintf("%.2f", log_or_high), ")\n",
+        "Lowest: ",
+        race_low, ": OR ", sprintf("%.2f", exp(log_or_low)),
+        " (ln ", sprintf("%.2f", log_or_low), ")\n",
+        "Largest within-category gap (ln OR): ",
+        sprintf("%.2f", disparity_spread)
+      )
+    )
+  
+  welcome_df_fixed <- welcome_df %>%
+    mutate(state_join = trimws(as.character(state))) %>%
+    select(-any_of(c("category", "map_value", "hover_text"))) %>%
+    left_join(winners_spread, by = "state_join") %>%
+    mutate(
+      # prevent plotly issues if anything didn't match
+      map_value = ifelse(is.na(map_value), 0, map_value),
+      hover_text = ifelse(
+        is.na(hover_text),
+        paste0(
+          "State: ", state_join, "\n",
+          "Exit category with largest disparity: Not available"
+        ),
+        hover_text
+      ),
+      # only show the data note when flagged
+      hover_text = ifelse(
+        isTRUE(unreliable_state),
+        paste0(hover_text, "\n", "Data note: Interpret with caution"),
+        hover_text
+      )
+    ) %>%
+    select(-state_join)
+  
+  # -------------------------
   # Random home image (one per session)
   # -------------------------
   home_images <- list.files("www", pattern = "_circle\\.png$", full.names = FALSE)
   home_images <- home_images[home_images != "maiko_in_kimono_circle.png"]
-  
   selected_home_image <- if (length(home_images) > 0) sample(home_images, 1) else NULL
   
   output$home_image <- renderUI({
@@ -216,51 +288,66 @@ server <- function(input, output, session) {
   )
   
   # -------------------------
-  # Map data
+  # Map data (reactive)
   # -------------------------
   map_data <- reactive({
     req(input$exit_cat)
     if (input$exit_cat == "largest") {
-      welcome_df
+      welcome_df_fixed
     } else {
       map_df %>% filter(category == input$exit_cat)
     }
   })
   
+  # -------------------------
+  # Map output (safe against empty layers + no input scoping errors)
+  # -------------------------
   output$map_plot <- renderPlotly({
     plot_df <- map_data()
     req(nrow(plot_df) > 0)
     
-    bad_df  <- plot_df[plot_df$unreliable_state == TRUE, ]
-    good_df <- plot_df[plot_df$unreliable_state == FALSE, ]
+    legend_title <- if (isTRUE(input$exit_cat == "largest")) "Spread (ln OR)" else "Log OR"
     
-    p <- plot_ly(source = "map") %>%
-      add_trace(
-        data = bad_df,
-        type = "choropleth",
-        locationmode = "USA-states",
-        locations = ~state_abb,
-        key = ~state_abb,
-        z = ~map_value,
-        text = ~hover_text,
-        hoverinfo = "text",
-        colorscale = list(list(0, "gray80"), list(1, "gray80")),
-        showscale = FALSE,
-        marker = list(line = list(color = "white", width = 0.5))
-      ) %>%
-      add_trace(
-        data = good_df,
-        type = "choropleth",
-        locationmode = "USA-states",
-        locations = ~state_abb,
-        key = ~state_abb,
-        z = ~map_value,
-        text = ~hover_text,
-        hoverinfo = "text",
-        colorscale = "Viridis",
-        colorbar = list(title = "Log OR"),
-        marker = list(line = list(color = "white", width = 0.5))
-      ) %>%
+    bad_df  <- plot_df %>% filter(isTRUE(unreliable_state))
+    good_df <- plot_df %>% filter(!isTRUE(unreliable_state))
+    
+    p <- plot_ly(source = "map")
+    
+    if (nrow(bad_df) > 0) {
+      p <- p %>%
+        add_trace(
+          data = bad_df,
+          type = "choropleth",
+          locationmode = "USA-states",
+          locations = ~state_abb,
+          key = ~state_abb,
+          z = ~map_value,
+          text = ~hover_text,
+          hoverinfo = "text",
+          colorscale = list(list(0, "gray80"), list(1, "gray80")),
+          showscale = FALSE,
+          marker = list(line = list(color = "white", width = 0.5))
+        )
+    }
+    
+    if (nrow(good_df) > 0) {
+      p <- p %>%
+        add_trace(
+          data = good_df,
+          type = "choropleth",
+          locationmode = "USA-states",
+          locations = ~state_abb,
+          key = ~state_abb,
+          z = ~map_value,
+          text = ~hover_text,
+          hoverinfo = "text",
+          colorscale = "Viridis",
+          colorbar = list(title = legend_title),
+          marker = list(line = list(color = "white", width = 0.5))
+        )
+    }
+    
+    p <- p %>%
       layout(
         geo = list(scope = "usa"),
         margin = list(l = 0, r = 0, t = 10, b = 0),
@@ -282,7 +369,6 @@ server <- function(input, output, session) {
       pull(state)
     
     if (length(clicked_name) == 0) return()
-    
     updateSelectInput(session, "state_sel", selected = clicked_name[1])
   })
   
@@ -291,21 +377,6 @@ server <- function(input, output, session) {
   # -------------------------
   output$policy_context_card <- renderUI({
     req(input$state_sel, input$exit_cat)
-    
-    pretty_cat <- function(x) {
-      dplyr::case_when(
-        is.na(x) ~ "",
-        x == "dismissed"       ~ "Dismissed (No Contact)",
-        x == "moved_out"       ~ "Moved Out",
-        x == "not_determined"  ~ "Not Determined",
-        x == "not_eligible"    ~ "Not Eligible",
-        x == "part_b_eligible" ~ "Part B Eligible",
-        x == "withdrawn"       ~ "Withdrawn",
-        TRUE ~ gsub("_", " ", x)
-      )
-    }
-    
-    fmt_or <- function(x) sprintf("%.2f", x)
     
     row_elig <- elig_df %>%
       filter(State == input$state_sel) %>%
@@ -342,17 +413,8 @@ server <- function(input, output, session) {
       filter(State == input$state_sel) %>%
       slice(1)
     
-    fund_val <- if (nrow(row_fund) == 0) {
-      NA_character_
-    } else {
-      row_fund$primary_funding_source_for_early_intervention[[1]]
-    }
-    
-    insurance_val <- if (nrow(row_fund) == 0) {
-      NA_character_
-    } else {
-      row_fund$state_bills_private_insurance_for_early_intervention[[1]]
-    }
+    fund_val <- if (nrow(row_fund) == 0) NA_character_ else row_fund$primary_funding_source_for_early_intervention[[1]]
+    insurance_val <- if (nrow(row_fund) == 0) NA_character_ else row_fund$state_bills_private_insurance_for_early_intervention[[1]]
     
     fund_phrase <- dplyr::case_when(
       is.na(fund_val) ~ "Primary funding source information is not available",
@@ -403,7 +465,6 @@ server <- function(input, output, session) {
         or_lo   <- row_cat$or_low[[1]]
         
         header_line <- if (input$exit_cat == "largest") {
-          
           if (i == 1) {
             paste0(
               'The largest between-group OR disparity across exit categories is observed in the "',
@@ -415,9 +476,7 @@ server <- function(input, output, session) {
               pretty_cat(cat_i), '" category:'
             )
           }
-          
         } else {
-          
           paste0(
             'Within the "', pretty_cat(cat_i),
             '" category in ', input$state_sel,
@@ -544,7 +603,7 @@ server <- function(input, output, session) {
       body
     )
   })
-  
 }
 
 shinyApp(ui = ui, server = server)
+
