@@ -10,6 +10,8 @@ You can:
 
 Below the map, the State Snapshot section summarizes key structural features for the selected state, including eligibility criteria (A/B/C classification), EI participation rate (with the 2023 national average of 4.20% shown for comparison), primary funding source, and private insurance billing status.
 
+Eligibility categories (A-C) summarize how states report their developmental delay thresholds. Category A generally reflects more accessible criteria and may include at-risk eligibility; Category B reflects moderate thresholds; Category C reflects higher qualifying threshold. 
+
 The snapshot also highlights notable differences in odds for up to two exit categories within the selected state. Within each category, the two race/ethnicity groups with the greatest distance from 1 (based on log OR) are displayed. These comparisons are descriptive and reflect observed variation in this dataset.
 
 This dashboard emphasizes analytic clarity and transparency. The goal is to make structural patterns visible while keeping interpretation grounded in system-level conditions rather than individual-level assumptions.
@@ -31,8 +33,9 @@ Used for: Foundational intersectionality framework guiding interpretation of dis
 * Crenshaw, K. (2020). On intersectionality. In Steinmetz, K. (2020, February 20). She coined the term “Intersectionality” over 30 years ago. Here’s what it means to her today. TIME.
 https://time.com/5786710/kimberle-crenshaw-intersectionality/
 Used for: Contemporary explanation of intersectionality as applied to policy and systems analysis.
+* Curran, F. C. (2020). A Matter of Measurement: How Different Ways of Measuring Racial Gaps in School Discipline Can Yield Drastically Different Conclusions About Racial Disparities in Discipline. Educational Researcher, 49(5), 382–387. https://doi.org/10.3102/0013189X20923348
+Used for: Understanding how metric choice shapes conclusions about racial disparities.
 * U.S. Department of Health and Human Services. (2025). Social Determinants of Health. Healthy People 2030. https://odphp.health.gov/healthypeople/priority-areas/social-determinants-health
-Used for: Contextual framework for understanding structural conditions influencing EI participation and exits.
 * U.S. Government Accountability Office. (2023, October 5). Additional data could help Early Intervention programs reach more eligible infants and toddlers. https://www.gao.gov/products/gao-24-106019
 Used for: Federal policy context related to data reporting and EI access.
 

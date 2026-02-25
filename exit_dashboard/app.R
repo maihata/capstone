@@ -9,14 +9,17 @@ no_nav_lines <- tags$style(HTML("
   .navbar-nav { border-bottom: none !important; }
 "))
 
+# -------------------------
+# Dashboard UI (reusable)
+# -------------------------
 dashboard_ui <- fluidPage(
   fluidRow(
     column(
       width = 4,
       selectInput(
-        inputId = "exit_cat",
-        label   = "Exit Category",
-        choices = NULL,
+        inputId  = "exit_cat",
+        label    = "Exit Category",
+        choices  = NULL,
         selected = "largest"
       )
     ),
@@ -34,7 +37,7 @@ dashboard_ui <- fluidPage(
     column(
       width = 12,
       helpText(
-        "Children exit Early Intervention (EI) for different reasons, including eligibility determinations at or before age three, relocation, family decisions, or loss of contact. These exits reflect system-level conditions shaped by state policies and data reporting practices, and should not be interpreted as lack of dedication or the true needs of children. The heatmap visualizes how the likelihood of different exit categories varies across states, highlighting where disparities are more pronounced."
+        "Children exit Early Intervention (EI) for different reasons, including eligibility determinations, relocation, family decisions, or loss of contact. These exits reflect system-level conditions shaped by policy and reporting practices and should not be interpreted as family deficits. The heatmap displays the log of the odds ratio (OR), which compares the relative likelihood of exit between groups within each category. Values above 1 indicate a higher likelihood and values below 1 indicate a lower likelihood relative to the reference group."
       )
     )
   ),
@@ -52,12 +55,31 @@ dashboard_ui <- fluidPage(
       width = 12,
       bslib::card(
         bslib::card_header("State Snapshot"),
-        bslib::card_body(uiOutput("policy_context_card"))
+        bslib::card_body(
+          uiOutput("policy_context_card")
+        )
+      )
+    )
+  ),
+  
+  br(),
+  
+  fluidRow(
+    column(
+      width = 12,
+      bslib::card(
+        bslib::card_header("Equity Implications"),
+        bslib::card_body(
+          uiOutput("equity_strategy_card")
+        )
       )
     )
   )
 )
 
+# -------------------------
+# Main UI
+# -------------------------
 ui <- page_navbar(
   id = "main_nav",
   title = "Maiko Hata's EI Exit Dashboard",
@@ -88,8 +110,6 @@ ui <- page_navbar(
     )
   ),
   
-  
-  
   nav_panel("EI Exit Dashboard", dashboard_ui),
   
   nav_panel(
@@ -109,15 +129,17 @@ ui <- page_navbar(
   )
 )
 
+# -------------------------
+# Server
+# -------------------------
 server <- function(input, output, session) {
-
+  
   observeEvent(input$go_dashboard, {
     updateNavbarPage(session, "main_nav", selected = "EI Exit Dashboard")
   })
   
-  
   # -------------------------
-  # Data loads (must exist inside the app folder)
+  # Data loads
   # -------------------------
   df         <- readRDS("data/analysis/state_avg_or_by_race_category_all_years.rds")
   map_df     <- readRDS("data/analysis/map_summary_logor_optionA.rds")
@@ -125,9 +147,6 @@ server <- function(input, output, session) {
   elig_df    <- readRDS("data/analysis/eligibility_ABC_long.rds")
   funding_df <- readRDS("data/analysis/NIEER_funding_table8_clean.rds")
   
-  # -------------------------
-  # Disparity extremes (single source of truth for snapshot)
-  # -------------------------
   disp_path <- "data/analysis/state_category_disparity_spread_log_or_with_race_extremes.rds"
   stopifnot(file.exists(disp_path))
   
@@ -142,14 +161,13 @@ server <- function(input, output, session) {
   # Random home image (one per session)
   # -------------------------
   home_images <- list.files("www", pattern = "_circle\\.png$", full.names = FALSE)
-  # Exclude specific image
   home_images <- home_images[home_images != "maiko_in_kimono_circle.png"]
-  selected_home_image <- sample(home_images, 1)
   
+  selected_home_image <- if (length(home_images) > 0) sample(home_images, 1) else NULL
   
   output$home_image <- renderUI({
+    if (is.null(selected_home_image)) return(NULL)
     
-    # Generate readable alt text from filename
     alt_text <- selected_home_image
     alt_text <- gsub("_circle\\.png$", "", alt_text)
     alt_text <- gsub("_", " ", alt_text)
@@ -171,7 +189,6 @@ server <- function(input, output, session) {
       )
     )
   })
-  
   
   # -------------------------
   # Inputs
@@ -270,7 +287,7 @@ server <- function(input, output, session) {
   })
   
   # -------------------------
-  # State snapshot (locked to race_high / race_low from disp_extremes)
+  # State snapshot
   # -------------------------
   output$policy_context_card <- renderUI({
     req(input$state_sel, input$exit_cat)
@@ -290,7 +307,6 @@ server <- function(input, output, session) {
     
     fmt_or <- function(x) sprintf("%.2f", x)
     
-    # eligibility + participation
     row_elig <- elig_df %>%
       filter(State == input$state_sel) %>%
       slice(1)
@@ -300,13 +316,15 @@ server <- function(input, output, session) {
     
     elig_phrase <- dplyr::case_when(
       is.na(elig_cat) ~ "Eligibility criteria information is not available",
-      elig_cat == "A" ~ "eligibility criteria are categorized as more restrictive (A)",
-      elig_cat == "B" ~ "eligibility criteria are categorized as near the national average (B)",
-      elig_cat == "C" ~ "eligibility criteria are categorized as less restrictive (C)",
-      TRUE ~ "eligibility category information is available but not recognized"
+      elig_cat == "A" ~ "eligibility criteria are categorized as more expansive (Category A)",
+      elig_cat == "B" ~ "eligibility criteria are categorized as moderate (Category B)",
+      elig_cat == "C" ~ "eligibility criteria are categorized as more restrictive (Category C)",
+      TRUE ~ "Eligibility category information is available but not recognized"
     )
     
-    national_avg <- 4.20  # 2023 national EI participation rate
+    elig_note <- "These categories are based on states’ reported eligibility criteria and reflect general differences in how expansive or restrictive developmental delay thresholds may be across states."
+    
+    national_avg <- 4.20
     
     part_phrase <- if (is.na(part_rate)) {
       "EI participation data are not available"
@@ -320,16 +338,21 @@ server <- function(input, output, session) {
       )
     }
     
-    # funding + insurance
     row_fund <- funding_df %>%
       filter(State == input$state_sel) %>%
       slice(1)
     
-    fund_val <- if (nrow(row_fund) == 0) NA_character_
-    else row_fund$primary_funding_source_for_early_intervention[[1]]
+    fund_val <- if (nrow(row_fund) == 0) {
+      NA_character_
+    } else {
+      row_fund$primary_funding_source_for_early_intervention[[1]]
+    }
     
-    insurance_val <- if (nrow(row_fund) == 0) NA_character_
-    else row_fund$state_bills_private_insurance_for_early_intervention[[1]]
+    insurance_val <- if (nrow(row_fund) == 0) {
+      NA_character_
+    } else {
+      row_fund$state_bills_private_insurance_for_early_intervention[[1]]
+    }
     
     fund_phrase <- dplyr::case_when(
       is.na(fund_val) ~ "Primary funding source information is not available",
@@ -347,7 +370,6 @@ server <- function(input, output, session) {
       TRUE ~ ""
     )
     
-    # categories for snapshot
     top_categories <- if (input$exit_cat == "largest") {
       disp_extremes %>%
         filter(state == input$state_sel) %>%
@@ -360,7 +382,6 @@ server <- function(input, output, session) {
     }
     
     disp_text <- ""
-    
     if (length(top_categories) > 0 && !all(is.na(top_categories))) {
       
       blocks <- character(0)
@@ -381,44 +402,149 @@ server <- function(input, output, session) {
         or_hi   <- row_cat$or_high[[1]]
         or_lo   <- row_cat$or_low[[1]]
         
-        bullets <- c(
-          paste0("\u2022 ", race_hi, ": OR ", fmt_or(or_hi)),
-          paste0("\u2022 ", race_lo, ": OR ", fmt_or(or_lo))
-        )
-        
-        header_line <- if (i == 1) {
-          paste0(
-            "In ", input$state_sel,
-            ', the largest between-group OR disparity is observed in the "',
-            pretty_cat(cat_i), '" category:'
-          )
+        header_line <- if (input$exit_cat == "largest") {
+          
+          if (i == 1) {
+            paste0(
+              'The largest between-group OR disparity across exit categories is observed in the "',
+              pretty_cat(cat_i), '" category:'
+            )
+          } else {
+            paste0(
+              'Another large between-group OR disparity is observed in the "',
+              pretty_cat(cat_i), '" category:'
+            )
+          }
+          
         } else {
+          
           paste0(
-            'Large between-group OR disparities are also observed in the "',
-            pretty_cat(cat_i), '" category:'
+            'Within the "', pretty_cat(cat_i),
+            '" category in ', input$state_sel,
+            ", the largest between-group OR disparity is observed between:"
           )
         }
+        
+        bullets <- c(
+          paste0("• ", race_hi, ": OR ", fmt_or(or_hi)),
+          paste0("• ", race_lo, ": OR ", fmt_or(or_lo))
+        )
         
         blocks <- c(blocks, paste(c(header_line, bullets), collapse = "\n"))
       }
       
-      if (length(blocks) > 0) {
-        disp_text <- paste0("\n\n", paste(blocks, collapse = "\n\n"))
-      }
+      if (length(blocks) > 0) disp_text <- paste(blocks, collapse = "\n\n")
     }
     
-    snapshot_text <- paste0(
-      "In ", input$state_sel, ", ", elig_phrase,
-      " based on state-defined developmental delay thresholds. ",
-      part_phrase, ". ",
-      fund_phrase, insurance_phrase, ".",
+    national_text <- ""
+    if (input$exit_cat != "largest" && !is.na(input$exit_cat)) {
+      
+      winners <- disp_extremes %>%
+        group_by(state) %>%
+        slice_max(order_by = disparity_spread, n = 1, with_ties = FALSE) %>%
+        ungroup()
+      
+      n_states <- sum(winners$category == input$exit_cat, na.rm = TRUE)
+      
+      national_text <- paste0(
+        "In ", n_states,
+        ' states, "', pretty_cat(input$exit_cat),
+        '" is the category showing the largest disparities across groups.'
+      )
+    }
+    
+    sections <- c(
+      paste0(
+        "In ", input$state_sel, ", ", elig_phrase, ". ",
+        elig_note, " ",
+        part_phrase, ". ",
+        fund_phrase, insurance_phrase, "."
+      ),
       disp_text,
-      "\n\nThese descriptions reflect system-level structures and do not imply individual-level causation."
+      national_text
     )
     
-    tags$p(style = "white-space: pre-line;", snapshot_text)
+    sections <- sections[nzchar(sections)]
+    snapshot_text <- paste(sections, collapse = "\n\n")
+    
+    tags$div(
+      style = "white-space: pre-line; line-height: 1.5; margin: 0;",
+      snapshot_text
+    )
   })
+  
+  # -------------------------
+  # Equity Strategy card
+  # -------------------------
+  output$equity_strategy_card <- renderUI({
+    req(input$state_sel, input$exit_cat)
+    
+    cat_for_strategy <- if (input$exit_cat == "largest") {
+      top_cat <- disp_extremes %>%
+        filter(state == input$state_sel) %>%
+        filter(!is.na(disparity_spread), is.finite(disparity_spread)) %>%
+        arrange(desc(disparity_spread)) %>%
+        slice(1) %>%
+        pull(category)
+      
+      ifelse(length(top_cat) == 0, NA_character_, top_cat)
+    } else {
+      input$exit_cat
+    }
+    
+    text_bank <- list(
+      overall = paste(
+        "Observed disparities should be understood within broader social and policy contexts, not as characteristics of racial or language groups.",
+        "Social Determinants of Health, including housing stability, health care access, and early screening opportunities, shape who enters and exits the EI pipeline.",
+        "Differences at exit often reflect inequities earlier in the pipeline.",
+        "Equitable data practices require attention to how demographic and language data are defined, collected, and interpreted."
+      ),
+      dismissed = paste(
+        "Differences in dismissal due to lost contact may reflect how demographic and language data are defined and recorded.",
+        "Social Determinants of Health, including housing stability, insurance access, and transportation, may influence continuity of contact.",
+        "Clarifying dismissal due to lost contact procedures, making follow-up steps explicit, and reducing subjectivity can support more equitable decision-making.",
+        "Culturally and linguistically responsive engagement strengthens trust and reduces unnecessary service interruption."
+      ),
+      not_eligible = paste(
+        "Differences in Not Eligible determinations may reflect when children enter the EI pipeline and the level of concern at referral.",
+        "Racially and linguistically marginalized children often access screening later, which may influence eligibility outcomes.",
+        "Patterns in this category should be interpreted alongside referral pathways, outreach practices, and Social Determinants of Health.",
+        "Strengthening early outreach may influence how families enter services and shape later transition outcomes."
+      ),
+      moved_out = paste(
+        "Differences in Moved Out exits may reflect housing mobility, migration patterns, and other conditions affecting living environments.",
+        "Mobility is shaped by intersecting Social Determinants of Health rather than characteristics of racial or language groups.",
+        "Strong inter-agency communication and documentation practices support continuity of services when families relocate.",
+        "More detailed and disaggregated data can improve understanding of mobility-related patterns."
+      ),
+      part_b_eligible = paste(
+        "Differences in Part B eligibility patterns may reflect timing of entry into the EI pipeline.",
+        "Variation in screening access and Social Determinants of Health influence transition positioning at age three.",
+        "Decision points across the EI pipeline are interconnected and shape later eligibility outcomes."
+      ),
+      not_determined = paste(
+        "Differences in Not Determined exits may reflect documentation completeness, follow-up procedures, or communication practices.",
+        "Strengthening clarity and consistency in evaluation workflows can reduce uneven outcomes.",
+        "As with dismissal due to lost contact, interruption before transition may reflect structural barriers rather than developmental need.",
+        "Reviewing timelines and family engagement supports can improve equity and interpretability."
+      ),
+      withdrawn = paste(
+        "Differences in Withdrawn exits may reflect family circumstances, access barriers, or changing priorities.",
+        "Social Determinants of Health and service accessibility influence continuity of participation.",
+        "Examining outreach, communication clarity, and cultural responsiveness can help interpret patterns in this category.",
+        "Data should be interpreted within broader structural contexts rather than as individual family characteristics."
+      )
+    )
+    
+    body <- if (input$exit_cat == "largest") text_bank$overall else text_bank[[cat_for_strategy]]
+    if (is.null(body)) body <- "Equity strategies will be expanded in a future version."
+    
+    tags$div(
+      style = "white-space: normal; line-height: 1.6; margin: 0;",
+      body
+    )
+  })
+  
 }
 
 shinyApp(ui = ui, server = server)
-
