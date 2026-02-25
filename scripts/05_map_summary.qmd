@@ -44,13 +44,83 @@ df2 <- df %>%
 ```
 
 ```{r}
+cat_labels <- c(
+  dismissed       = "Dismissed (No Contact)",
+  moved_out       = "Moved Out",
+  not_determined  = "Not Determined",
+  not_eligible    = "Not Eligible",
+  part_b_eligible = "Part B Eligible",
+  withdrawn       = "Withdrawn"
+)
+```
+
+```{r}
+# map_summary_df <- df2 %>%
+#   filter(!is.na(state_abb)) %>%
+#   group_by(category, state, state_abb) %>%
+#   summarise(
+#     unreliable_state = any(unreliable_row, na.rm = TRUE),
+# 
+#     # define has_reliable first, then use it below
+#     has_reliable = any(!unreliable_row & is.finite(log_or), na.rm = TRUE),
+# 
+#     high_idx = ifelse(
+#       has_reliable,
+#       which.max(ifelse(unreliable_row, NA_real_, log_or)),
+#       which.max(log_or)
+#     ),
+#     low_idx = ifelse(
+#       has_reliable,
+#       which.min(ifelse(unreliable_row, NA_real_, log_or)),
+#       which.min(log_or)
+#     ),
+# 
+#     high_race = race_ethnicity[high_idx][1],
+#     high_or   = or[high_idx][1],
+#     high_log  = log_or[high_idx][1],
+# 
+#     low_race  = race_ethnicity[low_idx][1],
+#     low_or    = or[low_idx][1],
+#     low_log   = log_or[low_idx][1],
+# 
+#     map_value = ifelse(
+#       has_reliable,
+#       max(abs(log_or[!unreliable_row]), na.rm = TRUE),
+#       max(abs(log_or), na.rm = TRUE)
+#     ),
+# 
+#     .groups = "drop"
+#   ) %>%
+#   mutate(
+#     # this is what your map should use for fill/z:
+#     # unreliable => NA => can display as gray
+#     map_value_plot = ifelse(unreliable_state, NA_real_, map_value),
+# 
+#     hover_text = paste0(
+#       "State: ", state,
+#       "<br>Category: ", category,
+#       "<br>Highest: ", high_race, " (OR ", round(high_or, 2), ", ln ", round(high_log, 2), ")",
+#       "<br>Lowest: ",  low_race,  " (OR ", round(low_or, 2),  ", ln ", round(low_log, 2),  ")",
+#       "<br>Max |ln(OR)|: ", round(map_value, 2),
+#       "<br>Flag: ", ifelse(unreliable_state, "Caution: suppressed/small/extreme", "OK")
+#     )
+#   )
+# 
+# saveRDS(map_summary_df, "../data/analysis/map_summary_logor_optionA.rds")
+# 
+# write.csv(
+#   map_summary_df,
+#   "../data/analysis/map_summary_logor_optionA.csv",
+#   row.names = FALSE)
+```
+
+```{r}
 map_summary_df <- df2 %>%
   filter(!is.na(state_abb)) %>%
   group_by(category, state, state_abb) %>%
   summarise(
     unreliable_state = any(unreliable_row, na.rm = TRUE),
 
-    # define has_reliable first, then use it below
     has_reliable = any(!unreliable_row & is.finite(log_or), na.rm = TRUE),
 
     high_idx = ifelse(
@@ -72,35 +142,35 @@ map_summary_df <- df2 %>%
     low_or    = or[low_idx][1],
     low_log   = log_or[low_idx][1],
 
-    map_value = ifelse(
-      has_reliable,
-      max(abs(log_or[!unreliable_row]), na.rm = TRUE),
-      max(abs(log_or), na.rm = TRUE)
-    ),
+    # metric used everywhere (matches app.R "largest" logic)
+    disparity_spread = high_log - low_log,
+
+    # use the same metric for the map shading
+    map_value = disparity_spread,
 
     .groups = "drop"
   ) %>%
   mutate(
-    # this is what your map should use for fill/z:
-    # unreliable => NA => can display as gray
     map_value_plot = ifelse(unreliable_state, NA_real_, map_value),
 
     hover_text = paste0(
       "State: ", state,
-      "<br>Category: ", category,
-      "<br>Highest: ", high_race, " (OR ", round(high_or, 2), ", ln ", round(high_log, 2), ")",
-      "<br>Lowest: ",  low_race,  " (OR ", round(low_or, 2),  ", ln ", round(low_log, 2),  ")",
-      "<br>Max |ln(OR)|: ", round(map_value, 2),
-      "<br>Flag: ", ifelse(unreliable_state, "Caution: suppressed/small/extreme", "OK")
+      "<br>Exit category: ", unname(cat_labels[category]),
+      "<br>Highest: ", high_race,
+      " (OR ", sprintf("%.2f", high_or),
+      ", ln ", sprintf("%.2f", high_log), ")",
+      "<br>Lowest: ", low_race,
+      " (OR ", sprintf("%.2f", low_or),
+      ", ln ", sprintf("%.2f", low_log), ")",
+      "<br>Largest within-category gap (ln OR): ",
+      sprintf("%.2f", disparity_spread),
+      ifelse(
+        unreliable_state,
+        "<br>Data flag: Caution (suppressed/small/extreme)",
+        ""
+      )
     )
   )
-
-saveRDS(map_summary_df, "../data/analysis/map_summary_logor_optionA.rds")
-
-write.csv(
-  map_summary_df,
-  "../data/analysis/map_summary_logor_optionA.csv",
-  row.names = FALSE)
 ```
 
 ```{r}
@@ -128,14 +198,14 @@ welcome_map_df <- map_summary_df %>%
     category_label = unname(cat_labels[category]),
     # for the welcome map, also make gray possible if the chosen row is unreliable
     map_value_plot = ifelse(unreliable_state, NA_real_, map_value),
-    hover_text = paste0(
-      "State: ", state,
-      "<br>Category: ", category_label,
-      "<br>Highest: ", high_race, " (OR ", round(high_or, 2), ", ln ", round(high_log, 2), ")",
-      "<br>Lowest: ",  low_race,  " (OR ", round(low_or, 2),  ", ln ", round(low_log, 2),  ")",
-      "<br>Max |ln(OR)| (across categories): ", round(map_value, 2),
-      "<br>Flag: ", ifelse(unreliable_state, "Caution: suppressed/small/extreme", "OK")
-    )
+ hover_text = paste0(
+  "State: ", state,
+  "<br>Largest disparity category: ", unname(cat_labels[category]),
+  "<br>Highest: ", high_race, " (OR ", sprintf("%.2f", high_or), ", ln ", sprintf("%.2f", high_log), ")",
+  "<br>Lowest: ",  low_race,  " (OR ", sprintf("%.2f", low_or),  ", ln ", sprintf("%.2f", low_log),  ")",
+  "<br>Max |ln(OR)| (across categories): ", sprintf("%.2f", map_value),
+  "<br>Flag: ", ifelse(unreliable_state, "Caution: suppressed/small/extreme", "OK")
+)
   )
 
 saveRDS(welcome_map_df, "../data/analysis/welcome_map_logor_optionA.rds")

@@ -196,13 +196,13 @@ server <- function(input, output, session) {
           map_value = disparity_spread,
           hover_text = paste0(
             "State: ", state_join, "\n",
-            "Exit category: ", pretty_cat(category), "\n\n",
-            "Most overrepresented group\n",
-            race_high, ": OR ", sprintf("%.2f", exp(log_or_high)),
-            " (ln ", sprintf("%.2f", log_or_high), ")\n\n",
-            "Most underrepresented group\n",
-            race_low, ": OR ", sprintf("%.2f", exp(log_or_low)),
-            " (ln ", sprintf("%.2f", log_or_low), ")\n\n",
+            "Largest disparity category: ", pretty_cat(category), "\n",
+            "Highest: ",
+            race_high, " (OR ", sprintf("%.2f", exp(log_or_high)),
+            ", ln ", sprintf("%.2f", log_or_high), ")\n",
+            "Lowest: ",
+            race_low, " (OR ", sprintf("%.2f", exp(log_or_low)),
+            ", ln ", sprintf("%.2f", log_or_low), ")\n",
             "Largest within-category gap (ln OR): ",
             sprintf("%.2f", disparity_spread)
           )
