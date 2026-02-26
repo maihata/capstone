@@ -11,6 +11,25 @@ no_nav_lines <- tags$style(HTML("
   .navbar-nav { border-bottom: none !important; }
 "))
 
+invisible_card_css <- tags$style(HTML("
+  .invisible-card {
+    border: none !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+  }
+  .invisible-card .card-header {
+    background-color: transparent !important;
+    border-bottom: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  .invisible-card .card-body {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 0.5rem !important;
+  }
+"))
+
 # -------------------------
 # Helpers (global)
 # -------------------------
@@ -57,7 +76,7 @@ dashboard_ui <- fluidPage(
     column(
       width = 12,
       helpText(
-        "Children exit Early Intervention (EI) for different reasons, including eligibility determinations, relocation, family decisions, or loss of contact. These exits reflect system-level conditions shaped by policy and reporting practices and should not be interpreted as family deficits. The heatmap displays the log of the odds ratio (OR), which compares the relative likelihood of exit between groups within each category. Values above 1 indicate a higher likelihood and values below 1 indicate a lower likelihood relative to the reference group."
+        "Children exit EI for different reasons, including eligibility determinations, relocation, family decisions, or loss of contact. These exits reflect system-level conditions shaped by policy and reporting practices. The map displays the log of the odds ratio (OR), comparing relative likelihood of exit between groups. Values above 1 indicate higher likelihood and values below 1 indicate lower likelihood relative to the reference group."
       )
     )
   ),
@@ -65,7 +84,18 @@ dashboard_ui <- fluidPage(
   br(),
   
   fluidRow(
-    column(width = 12, plotlyOutput("map_plot", height = "350px"))
+    column(
+      width = 8,
+      plotlyOutput("map_plot", height = "500px")
+    ),
+    column(
+      width = 4,
+      bslib::card(
+        class = "invisible-card",
+        bslib::card_header("State Snapshot"),
+        bslib::card_body(uiOutput("compact_snapshot"))
+      )
+    )
   ),
   
   br(),
@@ -74,7 +104,7 @@ dashboard_ui <- fluidPage(
     column(
       width = 12,
       bslib::card(
-        bslib::card_header("State Snapshot"),
+        bslib::card_header("Detailed State Context"),
         bslib::card_body(uiOutput("policy_context_card"))
       )
     )
@@ -100,7 +130,7 @@ ui <- page_navbar(
   id = "main_nav",
   title = "Maiko Hata's EI Exit Dashboard",
   theme = bs_theme(bootswatch = "minty"),
-  header = no_nav_lines,
+  header = tagList(no_nav_lines, invisible_card_css),
   navbar_options = navbar_options(bg = "#78C2AD", fg = "white"),
   
   nav_panel(
@@ -174,6 +204,95 @@ server <- function(input, output, session) {
   disp_extremes$race_low[disp_extremes$race_low == "MU_N"]  <- "Multiracial"
   
   # -------------------------
+  # Compact Snapshot (icons + key indicators)
+  # -------------------------
+  output$compact_snapshot <- renderUI({
+    req(input$state_sel, input$exit_cat)
+    
+    row_elig <- elig_df %>%
+      filter(State == input$state_sel) %>%
+      slice(1)
+    
+    part_rate <- if (nrow(row_elig) == 0) NA_real_ else row_elig$ei_participation_rate[[1]]
+    
+    row_fund <- funding_df %>%
+      filter(State == input$state_sel) %>%
+      slice(1)
+    
+    fund_val <- if (nrow(row_fund) == 0) NA_character_ else row_fund$primary_funding_source_for_early_intervention[[1]]
+    insurance_val <- if (nrow(row_fund) == 0) NA_character_ else row_fund$state_bills_private_insurance_for_early_intervention[[1]]
+    
+    insurance_line <- dplyr::case_when(
+      is.na(insurance_val) ~ "Private insurance billing: Not available",
+      insurance_val == "Yes" ~ "Private insurance billing: Yes",
+      insurance_val == "No" ~ "Private insurance billing: No",
+      insurance_val == "Not Reported" ~ "Private insurance billing: Not reported",
+      TRUE ~ paste0("Private insurance billing: ", insurance_val)
+    )
+    
+    top_cat <- disp_extremes %>%
+      filter(state == input$state_sel) %>%
+      filter(!is.na(disparity_spread), is.finite(disparity_spread)) %>%
+      arrange(desc(disparity_spread)) %>%
+      slice(1)
+    
+    disparity_text <- if (nrow(top_cat) == 0) {
+      "Not available"
+    } else {
+      paste0(
+        pretty_cat(top_cat$category[[1]]),
+        " (OR ", fmt_or(top_cat$or_high[[1]]),
+        " vs ", fmt_or(top_cat$or_low[[1]]), ")"
+      )
+    }
+    
+    tagList(
+      div(
+        style = "display:flex; align-items:flex-start; gap:16px; margin-bottom:22px;",
+        tags$img(
+          src   = "baby.svg",
+          style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
+        ),
+        div(
+          div(
+            style = "font-size:24px; font-weight:600; line-height:1.1;",
+            if (is.na(part_rate)) "Not available" else paste0(sprintf("%.2f", part_rate), "%")
+          ),
+          div(style = "font-size:13px; color:#666; margin-top:2px;", "Participation Rate")
+        )
+      ),
+      
+      div(
+        style = "display:flex; align-items:flex-start; gap:16px; margin-bottom:22px;",
+        tags$img(
+          src   = "money2.svg",
+          style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
+        ),
+        div(
+          div(
+            style = "font-size:16px; font-weight:600; line-height:1.2;",
+            if (is.na(fund_val) || fund_val == "Not Reported") "Not available" else fund_val
+          ),
+          div(style = "font-size:13px; color:#666; margin-top:2px;", "Primary Funding Source"),
+          div(style = "font-size:13px; color:#666; margin-top:2px;", insurance_line)
+        )
+      ),
+      
+      div(
+        style = "display:flex; align-items:flex-start; gap:16px;",
+        tags$img(
+          src   = "scale.svg",
+          style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
+        ),
+        div(
+          div(style = "font-size:16px; font-weight:600; line-height:1.2;", disparity_text),
+          div(style = "font-size:13px; color:#666; margin-top:2px;", "Largest Disparity")
+        )
+      )
+    )
+  })
+  
+  # -------------------------
   # Build "largest" map layer using the SAME metric as State Snapshot (disparity_spread)
   # Robust join + NA protection to prevent crashes
   # -------------------------
@@ -183,7 +302,6 @@ server <- function(input, output, session) {
     slice_max(order_by = disparity_spread, n = 1, with_ties = FALSE) %>%
     ungroup()
   
-  # join on trimmed state names (prevents silent mismatches)
   welcome_df_fixed <- welcome_df %>%
     mutate(state_join = trimws(as.character(state))) %>%
     select(-any_of(c("category", "map_value", "hover_text"))) %>%
@@ -210,7 +328,6 @@ server <- function(input, output, session) {
       by = "state_join"
     ) %>%
     mutate(
-      # prevent plotly from choking on all-NA z or missing hover text
       map_value = ifelse(is.na(map_value), 0, map_value),
       hover_text = ifelse(
         is.na(hover_text),
@@ -300,7 +417,7 @@ server <- function(input, output, session) {
     plot_df <- map_data()
     req(nrow(plot_df) > 0)
     
-    legend_title <- if (isTRUE(input$exit_cat == "largest")) "Spread (ln OR)" else "Log OR"
+    legend_title <- "Spread (ln OR)"
     
     bad_df  <- plot_df %>% filter(isTRUE(unreliable_state))
     good_df <- plot_df %>% filter(!isTRUE(unreliable_state))
@@ -336,7 +453,11 @@ server <- function(input, output, session) {
           text = ~hover_text,
           hoverinfo = "text",
           colorscale = "Viridis",
-          colorbar = list(title = legend_title),
+          colorbar = list(
+          title = legend_title,
+          x = -0.05,
+          xanchor = "right"
+          ), 
           marker = list(line = list(color = "white", width = 0.5))
         )
     }
@@ -344,7 +465,7 @@ server <- function(input, output, session) {
     p <- p %>%
       layout(
         geo = list(scope = "usa"),
-        margin = list(l = 0, r = 0, t = 10, b = 0),
+        margin = list(l = 0, r = 0, t = 0, b = 0),
         clickmode = "event+select"
       )
     
@@ -367,7 +488,7 @@ server <- function(input, output, session) {
   })
   
   # -------------------------
-  # State snapshot
+  # Detailed State Context (unchanged)
   # -------------------------
   output$policy_context_card <- renderUI({
     req(input$state_sel, input$exit_cat)
@@ -527,7 +648,7 @@ server <- function(input, output, session) {
   })
   
   # -------------------------
-  # Equity Strategy card
+  # Equity Strategy card (unchanged)
   # -------------------------
   output$equity_strategy_card <- renderUI({
     req(input$state_sel, input$exit_cat)

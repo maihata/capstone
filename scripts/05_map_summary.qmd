@@ -208,7 +208,10 @@ welcome_map_df <- map_summary_df %>%
 )
   )
 
-saveRDS(welcome_map_df, "../data/analysis/welcome_map_logor_optionA.rds")
+# saveRDS(map_summary_df, "../data/analysis/map_summary_logor_optionA.rds")
+
+saveRDS(map_summary_df, "data/analysis/map_summary_logor_optionA.rds")
+saveRDS(welcome_map_df, "data/analysis/welcome_map_logor_optionA.rds")
 
 write.csv(
   welcome_map_df,
