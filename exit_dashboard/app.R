@@ -28,8 +28,13 @@ invisible_card_css <- tags$style(HTML("
     padding-right: 0 !important;
     padding-top: 0.5rem !important;
   }
-"))
 
+  /* Minty headers ONLY for regular bslib cards (not the invisible snapshot card) */
+  .card:not(.invisible-card) > .card-header {
+    background-color: #E6F4F1 !important;
+    border-bottom: none !important;
+  }
+"))
 # -------------------------
 # Helpers (global)
 # -------------------------
@@ -76,7 +81,7 @@ dashboard_ui <- fluidPage(
     column(
       width = 12,
       helpText(
-        "Children exit EI for different reasons, including eligibility determinations, relocation, family decisions, or loss of contact. These exits reflect system-level conditions shaped by policy and reporting practices. The map displays the log of the odds ratio (OR), comparing relative likelihood of exit between groups. Values above 1 indicate higher likelihood and values below 1 indicate lower likelihood relative to the reference group."
+        "Children exit Early Intervention (EI) for different reasons, including eligibility determinations, relocation, family decisions, or loss of contact. These exits reflect system-level conditions shaped by policy and reporting practices. The map displays the log of the odds ratio (OR), where values above 1 indicate higher likelihood of exit and values below 1 indicate lower likelihood relative to the reference group."
       )
     )
   ),
@@ -91,32 +96,30 @@ dashboard_ui <- fluidPage(
     column(
       width = 4,
       bslib::card(
-        class = "invisible-card",
-        bslib::card_header("State Snapshot"),
+        bslib::card_header(uiOutput("snapshot_header")),
         bslib::card_body(uiOutput("compact_snapshot"))
       )
     )
   ),
   
-  br(),
+  div(style = "height: 4px;"),
   
   fluidRow(
+    style = "margin-top: -10px;",
     column(
       width = 12,
       bslib::card(
-        bslib::card_header("Detailed State Context"),
+        bslib::card_header(tags$strong("Detailed State Context")),
         bslib::card_body(uiOutput("policy_context_card"))
       )
     )
   ),
   
-  br(),
-  
   fluidRow(
     column(
       width = 12,
       bslib::card(
-        bslib::card_header("Equity Implications"),
+        bslib::card_header(tags$strong("Equity Implications")),
         bslib::card_body(uiOutput("equity_strategy_card"))
       )
     )
@@ -126,64 +129,78 @@ dashboard_ui <- fluidPage(
 # -------------------------
 # Main UI
 # -------------------------
-ui <- page_navbar(
-  id = "main_nav",
-  title = "Maiko Hata's EI Exit Dashboard",
-  theme = bs_theme(bootswatch = "minty"),
-  header = tagList(no_nav_lines, invisible_card_css),
-  navbar_options = navbar_options(bg = "#78C2AD", fg = "white"),
+
+ui <- tagList(
+  tags$head(
+    tags$link(rel = "icon", type = "image/png", href = "baby2.png")
+  ),
   
-  nav_panel(
-    "Home",
-    div(
-      style = "max-width: 900px; padding-top: 1rem;",
-      fluidRow(
-        column(width = 4, uiOutput("home_image")),
-        column(
-          width = 8,
-          includeMarkdown("content/about.md"),
-          div(
-            style = "text-align: center; margin-top: 20px; margin-bottom: 20px;",
-            actionButton(
-              "go_dashboard",
-              "Explore the EI Exit Dashboard",
-              class = "btn-primary",
-              style = "padding: 8px 20px; font-size: 14px;"
+  page_navbar(
+    id = "main_nav",
+    title = "Maiko Hata's EI Exit Dashboard",
+    theme = bs_theme(bootswatch = "minty"),
+    header = tagList(no_nav_lines, invisible_card_css),
+    navbar_options = navbar_options(bg = "#78C2AD", fg = "white"),
+    
+    nav_panel(
+      "Home",
+      div(
+        style = "max-width: 900px; padding-top: 1rem;",
+        fluidRow(
+          column(width = 4, uiOutput("home_image")),
+          column(
+            width = 8,
+            includeMarkdown("content/about.md"),
+            div(
+              style = "text-align: center; margin-top: 20px; margin-bottom: 20px;",
+              actionButton(
+                "go_dashboard",
+                "Explore the EI Exit Dashboard",
+                class = "btn-primary",
+                style = "padding: 8px 20px; font-size: 14px;"
+              )
             )
           )
         )
       )
+    ),
+    
+    nav_panel("Dashboard", dashboard_ui, value = "dashboard"),
+    
+    nav_panel(
+      "Guide",
+      div(
+        style = "max-width: 900px; padding-top: 1rem;",
+        includeMarkdown("content/using.md")
+      )
+    ),
+    
+    nav_panel(
+      "About",
+      div(
+        style = "max-width: 900px; padding-top: 1rem;",
+        includeMarkdown("content/maiko.md")
+      )
     )
-  ),
-  
-  nav_panel("EI Exit Dashboard", dashboard_ui),
-  
-  nav_panel(
-    "Using the Dashboard",
-    div(
-      style = "max-width: 900px; padding-top: 1rem;",
-      includeMarkdown("content/using.md")
-    )
-  ),
-  
-  nav_panel(
-    "About Maiko",
-    div(
-      style = "max-width: 900px; padding-top: 1rem;",
-      includeMarkdown("content/maiko.md")
-    )
-  )
-)
-
+    
+  )  # closes page_navbar
+)    # closes tagList
 # -------------------------
 # Server
 # -------------------------
 server <- function(input, output, session) {
   
   observeEvent(input$go_dashboard, {
-    updateNavbarPage(session, "main_nav", selected = "EI Exit Dashboard")
+    updateNavbarPage(session, "main_nav", selected = "dashboard")
   })
   
+  output$snapshot_header <- renderUI({
+    req(input$state_sel)
+    tags$span(
+      style = "font-weight:700; font-size:20px;",
+      paste0(input$state_sel, " Snapshot")
+    )
+  })
   # -------------------------
   # Data loads
   # -------------------------
@@ -230,20 +247,39 @@ server <- function(input, output, session) {
       TRUE ~ paste0("Private insurance billing: ", insurance_val)
     )
     
-    top_cat <- disp_extremes %>%
-      filter(state == input$state_sel) %>%
-      filter(!is.na(disparity_spread), is.finite(disparity_spread)) %>%
-      arrange(desc(disparity_spread)) %>%
-      slice(1)
+    top_cat <- if (input$exit_cat == "largest") {
+      disp_extremes %>%
+        filter(state == input$state_sel) %>%
+        filter(!is.na(disparity_spread), is.finite(disparity_spread)) %>%
+        arrange(desc(disparity_spread)) %>%
+        slice(1)
+    } else {
+      disp_extremes %>%
+        filter(state == input$state_sel, category == input$exit_cat) %>%
+        slice(1)
+    }
     
     disparity_text <- if (nrow(top_cat) == 0) {
       "Not available"
     } else {
-      paste0(
-        pretty_cat(top_cat$category[[1]]),
-        " (OR ", fmt_or(top_cat$or_high[[1]]),
-        " vs ", fmt_or(top_cat$or_low[[1]]), ")"
-      )
+      
+      race_hi <- top_cat$race_high[[1]]
+      race_lo <- top_cat$race_low[[1]]
+      or_hi   <- top_cat$or_high[[1]]
+      or_lo   <- top_cat$or_low[[1]]
+      
+      if (input$exit_cat == "largest") {
+        paste0(
+          pretty_cat(top_cat$category[[1]]),
+          " (OR ", fmt_or(or_hi), " (", race_hi, ")",
+          " vs ", fmt_or(or_lo), " (", race_lo, "))"
+        )
+      } else {
+        paste0(
+          "OR ", fmt_or(or_hi), " (", race_hi, ")",
+          " vs ", fmt_or(or_lo), " (", race_lo, ")"
+        )
+      }
     }
     
     tagList(
@@ -255,10 +291,10 @@ server <- function(input, output, session) {
         ),
         div(
           div(
-            style = "font-size:24px; font-weight:600; line-height:1.1;",
+            style = "font-size:18px; font-weight:600; line-height:1.2;",
             if (is.na(part_rate)) "Not available" else paste0(sprintf("%.2f", part_rate), "%")
           ),
-          div(style = "font-size:13px; color:#666; margin-top:2px;", "Participation Rate")
+          div(style = "font-size:14px; color:#666; margin-top:2px;", "Participation Rate")
         )
       ),
       
@@ -270,11 +306,11 @@ server <- function(input, output, session) {
         ),
         div(
           div(
-            style = "font-size:16px; font-weight:600; line-height:1.2;",
+            style = "font-size:18px; font-weight:600; line-height:1.2;",
             if (is.na(fund_val) || fund_val == "Not Reported") "Not available" else fund_val
           ),
-          div(style = "font-size:13px; color:#666; margin-top:2px;", "Primary Funding Source"),
-          div(style = "font-size:13px; color:#666; margin-top:2px;", insurance_line)
+          div(style = "font-size:14px; color:#666; margin-top:2px;", "Primary Funding Source"),
+          div(style = "font-size:14px; color:#666; margin-top:2px;", insurance_line)
         )
       ),
       
@@ -285,9 +321,16 @@ server <- function(input, output, session) {
           style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
         ),
         div(
-          div(style = "font-size:16px; font-weight:600; line-height:1.2;", disparity_text),
-          div(style = "font-size:13px; color:#666; margin-top:2px;", "Largest Disparity")
-        )
+          div(style = "font-size:14px; font-weight:600; line-height:1.2;", disparity_text),
+          div(
+            style = "font-size:14px; color:#666; margin-top:2px;",
+            if (input$exit_cat == "largest") {
+              "Largest Disparity"
+            } else {
+              paste0("Disparity in ", pretty_cat(input$exit_cat), " category")
+            }
+          )
+          )
       )
     )
   })
@@ -452,7 +495,7 @@ server <- function(input, output, session) {
           z = ~map_value,
           text = ~hover_text,
           hoverinfo = "text",
-          colorscale = "Viridis",
+          colorscale = "YlGnBu",
           colorbar = list(
           title = legend_title,
           x = -0.05,

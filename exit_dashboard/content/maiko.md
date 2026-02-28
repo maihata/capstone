@@ -1,4 +1,4 @@
-<img src="maiko_in_kimono_circle.png" width="220" style="float: left; margin-right: 20px; margin-bottom: 15px; border-radius: 50%;" />
+<img src="maiko_in_kimono_circle.png" width="220" style="float: left; margin-right: 20px; margin-bottom: 15px; border-radius: 50%;"/>
 
 ## About Maiko
 
