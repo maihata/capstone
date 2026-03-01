@@ -8,12 +8,17 @@ editor_options:
 
 The interactive map displays, for each state, the exit category with the
 largest observed disparity when “Largest Disparity Category (All)” is
-selected. Disparities are calculated using the log of the odds ratio
-(OR), which treats values above and below 1 symmetrically. For example,
-odds ratios of 2.0 and 0.5 are equally distant from 1, but in opposite
-directions (twice as likely vs. half as likely). This approach
-highlights where variation is most pronounced within each state while
-maintaining analytic consistency across categories.
+selected. Map colors are based on the log of the odds ratio (log OR).
+Using the log scale treats differences above and below 1 symmetrically.
+For example, odds ratios of 2.0 and 0.5 are equally distant from 1, but
+in opposite directions (twice as likely vs. half as likely). This
+approach highlights where variation is most pronounced within each state
+while maintaining analytic consistency across categories. When you hover
+over a state, the displayed values are standard odds ratios (OR). Odds
+ratios above 1 indicate higher likelihood relative to the reference
+group, and values below 1 indicate lower likelihood. The log scale is
+used for visual comparison on the map, while OR values are shown for
+interpretability.
 
 You can:
 

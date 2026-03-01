@@ -1,10 +1,28 @@
-# app.R
+# ============================================================
+# app.R — EI Exit Dashboard (Shiny + bslib + plotly)
+# Notes for future you:
+# - UI is defined first (what users see).
+# - Server defines what gets calculated and how UI updates.
+# - plotly map uses two layers: "good" (colored) + "bad" (gray).
+# - Most things are driven by input$exit_cat and input$state_sel.
+# ============================================================
 
 library(shiny)
 library(bslib)
 library(plotly)
 library(dplyr)
 library(markdown)
+
+# ============================================================
+# CSS: small visual tweaks applied globally
+# ------------------------------------------------------------
+# no_nav_lines:
+#   Removes default navbar borders/lines to better match Minty.
+# invisible_card_css:
+#   Provides an optional CSS class (.invisible-card) that can make
+#   bslib cards look like plain text blocks (no border/background).
+#   Also customizes Minty card headers (except invisible cards).
+# ============================================================
 
 no_nav_lines <- tags$style(HTML("
   .navbar-nav > li > a { border: none !important; }
@@ -35,9 +53,18 @@ invisible_card_css <- tags$style(HTML("
     border-bottom: none !important;
   }
 "))
-# -------------------------
+
+# ============================================================
 # Helpers (global)
-# -------------------------
+# ------------------------------------------------------------
+# pretty_cat():
+#   Converts your internal category keys into human-readable labels.
+#   This keeps labeling consistent everywhere (map hover, snapshot, text).
+#
+# fmt_or():
+#   Formats odds ratios with 2 decimals for readability.
+# ============================================================
+
 pretty_cat <- function(x) {
   dplyr::case_when(
     is.na(x) ~ "",
@@ -53,9 +80,27 @@ pretty_cat <- function(x) {
 
 fmt_or <- function(x) sprintf("%.2f", x)
 
-# -------------------------
+# ============================================================
 # Dashboard UI (reusable)
-# -------------------------
+# ------------------------------------------------------------
+# This is the content shown under the "Dashboard" tab.
+#
+# Top row:
+#   - Exit category dropdown (input$exit_cat)
+#   - State dropdown (input$state_sel)
+#
+# Next row:
+#   - Short interpretation text for map reading
+#
+# Main row:
+#   - Left: plotly map
+#   - Right: State Snapshot card (compact indicators)
+#
+# Bottom:
+#   - Detailed State Context card (long narrative)
+#   - Equity Implications card (long narrative)
+# ============================================================
+
 dashboard_ui <- fluidPage(
   fluidRow(
     column(
@@ -81,7 +126,7 @@ dashboard_ui <- fluidPage(
     column(
       width = 12,
       helpText(
-        "Children exit Early Intervention (EI) for different reasons, including eligibility determinations, relocation, family decisions, or loss of contact. These exits reflect system-level conditions shaped by policy and reporting practices. The map displays the log of the odds ratio (OR), where values above 1 indicate higher likelihood of exit and values below 1 indicate lower likelihood relative to the reference group."
+        "Children exit Early Intervention (EI) for different reasons, including eligibility determinations, relocation, family decisions, or loss of contact. These exits reflect system-level conditions shaped by policy and reporting practices. Map colors show the log of the odds ratio (log OR) to make differences above and below 1 visually comparable. Hover over a state to see odds ratios (OR), where values above 1 indicate higher likelihood of exit and values below 1 indicate lower likelihood relative to the reference group."
       )
     )
   ),
@@ -126,9 +171,18 @@ dashboard_ui <- fluidPage(
   )
 )
 
-# -------------------------
-# Main UI
-# -------------------------
+# ============================================================
+# Main UI (page_navbar)
+# ------------------------------------------------------------
+# The overall structure of the app (tabs):
+# - Home (landing page + image + about text + button)
+# - Dashboard (the interactive map UI above)
+# - Guide (markdown)
+# - About (markdown)
+#
+# tags$head favicon:
+#   Uses baby2.png in /www
+# ============================================================
 
 ui <- tagList(
   tags$head(
@@ -185,14 +239,32 @@ ui <- tagList(
     
   )  # closes page_navbar
 )    # closes tagList
-# -------------------------
+
+# ============================================================
 # Server
-# -------------------------
+# ------------------------------------------------------------
+# This is where:
+# - data is loaded (readRDS)
+# - dropdowns are populated
+# - map layers are built
+# - snapshot + narrative cards are generated
+# - click on map updates dropdown
+# ============================================================
+
 server <- function(input, output, session) {
+  
+  # ----------------------------------------------------------
+  # Home page button: jump to Dashboard tab
+  # ----------------------------------------------------------
   
   observeEvent(input$go_dashboard, {
     updateNavbarPage(session, "main_nav", selected = "dashboard")
   })
+  
+  # ----------------------------------------------------------
+  # Snapshot header: just prints "<State> Snapshot"
+  # Depends on input$state_sel
+  # ----------------------------------------------------------
   
   output$snapshot_header <- renderUI({
     req(input$state_sel)
@@ -201,14 +273,79 @@ server <- function(input, output, session) {
       paste0(input$state_sel, " Snapshot")
     )
   })
-  # -------------------------
-  # Data loads
-  # -------------------------
+  # ----------------------------------------------------------
+  # Data loads (RDS)
+  # ----------------------------------------------------------
+  # df         = state-level OR summaries used mainly for dropdown state list
+  # map_df     = map summary by category (was originally log OR based)
+  # welcome_df = baseline map scaffold for "largest disparity" view
+  # elig_df    = eligibility category (A/B/C) + EI participation rate
+  # funding_df = NIEER funding table
+  #
+  # IMPORTANT:
+  # map_df and welcome_df filenames include "logor"
+  # which suggests their internal values may be in log space.
+  # ----------------------------------------------------------
+  
   df         <- readRDS("data/analysis/state_avg_or_by_race_category_all_years.rds")
   map_df     <- readRDS("data/analysis/map_summary_logor_optionA.rds")
   welcome_df <- readRDS("data/analysis/welcome_map_logor_optionA.rds")
   elig_df    <- readRDS("data/analysis/eligibility_ABC_long.rds")
   funding_df <- readRDS("data/analysis/NIEER_funding_table8_clean.rds")
+  
+  # -------------------------
+  # Diagnostic: confirm map scale (manual toggle)
+  # ------------------------------------------------------------
+  # Goal: quickly verify whether map values look like log(OR) or OR.
+  # How to use:
+  #   - Change if (FALSE) to if (TRUE)
+  #   - Run app once, read the Console output
+  #   - Change back to FALSE
+  # -------------------------
+  if (FALSE) {
+    cat("\n--- MAP DIAGNOSTICS ---\n")
+    
+    # Single-category maps (map_df)
+    cat("\nmap_df$map_value summary (single-category maps):\n")
+    if ("map_value" %in% names(map_df)) {
+      print(summary(map_df$map_value))
+      cat("Range:", paste(range(map_df$map_value, na.rm = TRUE), collapse = " to "), "\n")
+      cat("Any negative values?:", any(map_df$map_value < 0, na.rm = TRUE), "\n")
+      
+      # Quick heuristic:
+      # - If you see negatives, it's almost certainly log(OR) (because OR can't be negative).
+      # - If values cluster around 0 (e.g., -1 to 1), that's typical log(OR).
+      # - If values cluster around 1 (e.g., 0.3 to 3), that's typical OR.
+    } else {
+      cat("map_df has no map_value column\n")
+    }
+    
+    # Largest-disparity source (disp_extremes)
+    cat("\ndisp_extremes$disparity_spread summary (largest map source):\n")
+    if ("disparity_spread" %in% names(disp_extremes)) {
+      print(summary(disp_extremes$disparity_spread))
+      cat("Range:", paste(range(disp_extremes$disparity_spread, na.rm = TRUE), collapse = " to "), "\n")
+      cat("Any negative values?:", any(disp_extremes$disparity_spread < 0, na.rm = TRUE), "\n")
+      
+      # Quick heuristic:
+      # - disparity_spread is often log_or_high - log_or_low (log scale), so it is usually >= 0.
+      # - If you want an OR-ratio version, exp(disparity_spread) gives (OR_high / OR_low).
+    } else {
+      cat("disp_extremes has no disparity_spread column\n")
+    }
+    
+    cat("--- END DIAGNOSTICS ---\n\n")
+  }
+  # ----------------------------------------------------------
+  # Disparity extremes file (drives "largest disparity" logic)
+  # ----------------------------------------------------------
+  # disp_extremes contains:
+  # - log_or_high / log_or_low: log-scale OR extremes within a state+category
+  # - disparity_spread: typically log_or_high - log_or_low (log-scale spread)
+  #
+  # Then you compute:
+  # - or_high/or_low = exp(log_or_high/log_or_low) to convert back to OR scale
+  # ----------------------------------------------------------
   
   disp_path <- "data/analysis/state_category_disparity_spread_log_or_with_race_extremes.rds"
   stopifnot(file.exists(disp_path))
@@ -216,22 +353,38 @@ server <- function(input, output, session) {
   disp_extremes <- readRDS(disp_path)
   disp_extremes$or_high <- exp(disp_extremes$log_or_high)
   disp_extremes$or_low  <- exp(disp_extremes$log_or_low)
-  
+ 
+   # Clean labels for Multiracial
   disp_extremes$race_high[disp_extremes$race_high == "MU_N"] <- "Multiracial"
   disp_extremes$race_low[disp_extremes$race_low == "MU_N"]  <- "Multiracial"
   
-  # -------------------------
-  # Compact Snapshot (icons + key indicators)
-  # -------------------------
+  # ----------------------------------------------------------
+  # Compact Snapshot (right panel)
+  # ----------------------------------------------------------
+  # Goal:
+  # Show 3 mini "icon blocks":
+  # 1) EI participation rate (elig_df)
+  # 2) Funding source + private insurance billing (funding_df)
+  # 3) Largest disparity summary (disp_extremes)
+  #
+  # Note:
+  # You build disparity_text differently depending on:
+  # - "largest" (across categories) vs specific category
+  #
+  # HTML(disparity_text):
+  # You use <br> line breaks; HTML() tells Shiny to interpret those as line breaks.
+  # ----------------------------------------------------------
   output$compact_snapshot <- renderUI({
     req(input$state_sel, input$exit_cat)
     
+    # Pull eligibility info for the selected state
     row_elig <- elig_df %>%
       filter(State == input$state_sel) %>%
       slice(1)
     
     part_rate <- if (nrow(row_elig) == 0) NA_real_ else row_elig$ei_participation_rate[[1]]
     
+    # Pull funding info for the selected state
     row_fund <- funding_df %>%
       filter(State == input$state_sel) %>%
       slice(1)
@@ -239,6 +392,7 @@ server <- function(input, output, session) {
     fund_val <- if (nrow(row_fund) == 0) NA_character_ else row_fund$primary_funding_source_for_early_intervention[[1]]
     insurance_val <- if (nrow(row_fund) == 0) NA_character_ else row_fund$state_bills_private_insurance_for_early_intervention[[1]]
     
+    # Human-friendly private insurance line
     insurance_line <- dplyr::case_when(
       is.na(insurance_val) ~ "Private insurance billing: Not available",
       insurance_val == "Yes" ~ "Private insurance billing: Yes",
@@ -247,6 +401,7 @@ server <- function(input, output, session) {
       TRUE ~ paste0("Private insurance billing: ", insurance_val)
     )
     
+    # Identify the relevant category row(s) in disp_extremes
     top_cat <- if (input$exit_cat == "largest") {
       disp_extremes %>%
         filter(state == input$state_sel) %>%
@@ -259,6 +414,7 @@ server <- function(input, output, session) {
         slice(1)
     }
     
+    # Build readable disparity text for the snapshot
     disparity_text <- if (nrow(top_cat) == 0) {
       "Not available"
     } else {
@@ -270,9 +426,10 @@ server <- function(input, output, session) {
       
       if (input$exit_cat == "largest") {
         paste0(
-          pretty_cat(top_cat$category[[1]]),
-          " (OR ", fmt_or(or_hi), " (", race_hi, ")",
-          " vs ", fmt_or(or_lo), " (", race_lo, "))"
+          pretty_cat(top_cat$category[[1]]), "<br>",
+          "Highest: ", race_hi, " (OR ", fmt_or(or_hi), ")<br>",
+          "Lowest: ", race_lo, " (OR ", fmt_or(or_lo), ")<br>",
+          "OR ratio (highest/lowest): ", fmt_or(or_hi / or_lo)
         )
       } else {
         paste0(
@@ -282,22 +439,25 @@ server <- function(input, output, session) {
       }
     }
     
+    # Render the 3 icon blocks
     tagList(
+      # 1) Participation rate
       div(
         style = "display:flex; align-items:flex-start; gap:16px; margin-bottom:22px;",
         tags$img(
           src   = "baby.svg",
           style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
         ),
+        # 2) Funding + insurance
         div(
           div(
             style = "font-size:18px; font-weight:600; line-height:1.2;",
             if (is.na(part_rate)) "Not available" else paste0(sprintf("%.2f", part_rate), "%")
           ),
-          div(style = "font-size:14px; color:#666; margin-top:2px;", "Participation Rate")
+          div(style = "font-size:14px; color:#666; margin-top:2px;", "EI participation rate")
         )
       ),
-      
+      # 3) Disparity summary
       div(
         style = "display:flex; align-items:flex-start; gap:16px; margin-bottom:22px;",
         tags$img(
@@ -321,7 +481,10 @@ server <- function(input, output, session) {
           style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
         ),
         div(
-          div(style = "font-size:14px; font-weight:600; line-height:1.2;", disparity_text),
+          div(
+            style = "font-size:14px; font-weight:600; line-height:1.2;",
+            HTML(disparity_text)
+          ),          
           div(
             style = "font-size:14px; color:#666; margin-top:2px;",
             if (input$exit_cat == "largest") {
@@ -335,58 +498,78 @@ server <- function(input, output, session) {
     )
   })
   
-  # -------------------------
-  # Build "largest" map layer using the SAME metric as State Snapshot (disparity_spread)
-  # Robust join + NA protection to prevent crashes
-  # -------------------------
+  # ----------------------------------------------------------
+  # Winners across categories for each state (largest view)
+  # ----------------------------------------------------------
+  # winners_spread = for each state, pick the category with max disparity_spread.
+  # This is what drives the "Largest Disparity Category (All)" choice.
+  # ----------------------------------------------------------
   winners_spread <- disp_extremes %>%
     filter(!is.na(disparity_spread), is.finite(disparity_spread)) %>%
     group_by(state) %>%
     slice_max(order_by = disparity_spread, n = 1, with_ties = FALSE) %>%
     ungroup()
   
+  # ----------------------------------------------------------
+  # welcome_df_fixed (largest view map dataset)
+  # ----------------------------------------------------------
+  # welcome_df is your base map scaffold (state names, abbreviations, flags).
+  # You join in the winner category + map_value + hover_text.
+  #
+  # NOTE:
+  # Currently map_value = disparity_spread (which is likely log-scale spread).
+  # If you want the legend to truly be OR-based, you typically want:
+  # map_value = exp(disparity_spread) = OR_high / OR_low
+  #
+  # Also: hover_text uses <br> for consistent line breaks in plotly.
+  # ----------------------------------------------------------
+  # ----------------------------------------------------------
+  # welcome_df_fixed (largest view map dataset)  ✅ reverted to working join
+  # ----------------------------------------------------------
+  
+  winners_join <- winners_spread %>%
+    mutate(state_join = trimws(as.character(state))) %>%
+    transmute(
+      state_join,
+      category,
+      map_value = disparity_spread,
+      high_race = race_high,
+      low_race  = race_low,
+      high_or   = or_high,
+      low_or    = or_low,
+      hover_text = paste0(
+        "State: ", state, "<br>",
+        "Largest disparity category: ", pretty_cat(category), "<br>",
+        "Highest: ", race_high, " (OR ", sprintf("%.2f", or_high), ")<br>",
+        "Lowest: ",  race_low,  " (OR ", sprintf("%.2f", or_low), ")"
+      )
+    )
+  
   welcome_df_fixed <- welcome_df %>%
     mutate(state_join = trimws(as.character(state))) %>%
-    select(-any_of(c("category", "map_value", "hover_text"))) %>%
-    left_join(
-      winners_spread %>%
-        mutate(state_join = trimws(as.character(state))) %>%
-        transmute(
-          state_join,
-          category,
-          map_value = disparity_spread,
-          hover_text = paste0(
-            "State: ", state_join, "\n",
-            "Largest disparity category: ", pretty_cat(category), "\n",
-            "Highest: ",
-            race_high, " (OR ", sprintf("%.2f", exp(log_or_high)),
-            ", ln ", sprintf("%.2f", log_or_high), ")\n",
-            "Lowest: ",
-            race_low, " (OR ", sprintf("%.2f", exp(log_or_low)),
-            ", ln ", sprintf("%.2f", log_or_low), ")\n",
-            "Largest within-category gap (ln OR): ",
-            sprintf("%.2f", disparity_spread)
-          )
-        ),
-      by = "state_join"
-    ) %>%
+    # remove any old columns so the join is clean (safe even if they don't exist)
+    select(-any_of(c("category", "map_value", "hover_text", "high_race", "low_race", "high_or", "low_or"))) %>%
+    left_join(winners_join, by = "state_join") %>%
     mutate(
-      map_value = ifelse(is.na(map_value), 0, map_value),
+      unreliable_state = isTRUE(unreliable_state) | is.na(map_value) | !is.finite(map_value),
       hover_text = ifelse(
         is.na(hover_text),
         paste0(
-          "State: ", state_join, "\n",
-          "Exit category: Not available\n\n",
+          "State: ", state, "<br>",
+          "Exit category: Not available<br>",
           "Data flag: ", ifelse(isTRUE(unreliable_state), "Caution", "OK")
         ),
         hover_text
       )
     ) %>%
     select(-state_join)
-  
-  # -------------------------
-  # Random home image (one per session)
-  # -------------------------
+  # ----------------------------------------------------------
+  # Random home image (picked once per session)
+  # ----------------------------------------------------------
+  # Looks in /www for files like *_circle.png
+  # Excludes maiko_in_kimono_circle.png
+  # Displays the chosen one on Home tab.
+  # ----------------------------------------------------------
   home_images <- list.files("www", pattern = "_circle\\.png$", full.names = FALSE)
   home_images <- home_images[home_images != "maiko_in_kimono_circle.png"]
   selected_home_image <- if (length(home_images) > 0) sample(home_images, 1) else NULL
@@ -416,9 +599,12 @@ server <- function(input, output, session) {
     )
   })
   
-  # -------------------------
-  # Inputs
-  # -------------------------
+  # ----------------------------------------------------------
+  # Populate dropdown inputs
+  # ----------------------------------------------------------
+  # state_sel choices come from df$state
+  # exit_cat choices are hard-coded labels -> internal keys
+  # ----------------------------------------------------------
   updateSelectInput(
     session,
     inputId = "state_sel",
@@ -441,30 +627,70 @@ server <- function(input, output, session) {
     selected = "largest"
   )
   
-  # -------------------------
-  # Map data (reactive)
-  # -------------------------
+  # ----------------------------------------------------------
+  # Map data reactive
+  # ----------------------------------------------------------
+  # If "largest":
+  #   use welcome_df_fixed (winner category per state)
+  # else:
+  #   use map_df filtered to that category
+  #
+  # NOTE:
+  # If map_df is log OR, and you want OR, you would do:
+  #   mutate(map_value = exp(map_value))
+  # ----------------------------------------------------------
   map_data <- reactive({
     req(input$exit_cat)
+    
     if (input$exit_cat == "largest") {
-      welcome_df_fixed
+      
+      return(welcome_df_fixed)
+      
     } else {
-      map_df %>% filter(category == input$exit_cat)
+      
+      return(
+        map_df %>%
+          filter(category == input$exit_cat) %>%
+          mutate(
+            hover_text = paste0(
+              "State: ", state, "<br>",
+              "Exit category: ", pretty_cat(category), "<br>",
+              "Highest: ", high_race, " (OR ", sprintf("%.2f", high_or), ")<br>",
+              "Lowest: ",  low_race,  " (OR ", sprintf("%.2f", low_or), ")"
+            )
+          )
+      )
+      
     }
   })
-  
-  # -------------------------
-  # Map output (safe against empty layers + no input scoping errors)
-  # -------------------------
+  # ----------------------------------------------------------
+  # Map output (plotly choropleth)
+  # ----------------------------------------------------------
+  # Strategy:
+  # - Split into "bad" (unreliable -> gray) and "good" (reliable -> colored)
+  # - Draw bad first (so it sits underneath)
+  # - Draw good second (main visible layer)
+  #
+  # Using event_register("plotly_click") enables click events.
+  # ----------------------------------------------------------
   output$map_plot <- renderPlotly({
     plot_df <- map_data()
     req(nrow(plot_df) > 0)
     
-    legend_title <- "Spread (ln OR)"
+    legend_title <- "Log OR"
     
-    bad_df  <- plot_df %>% filter(isTRUE(unreliable_state))
-    good_df <- plot_df %>% filter(!isTRUE(unreliable_state))
+    # Gray layer: unreliable states
+    bad_df <- plot_df %>%
+      filter(isTRUE(unreliable_state)) %>%
+      mutate(map_value_plot = ifelse(is.na(map_value) | !is.finite(map_value), 0, map_value))
     
+    # Colored layer: reliable states
+    good_df <- plot_df %>%
+      filter(!isTRUE(unreliable_state))
+    
+    # sel_df is prepared for optional future use (e.g., outline selected state)
+    sel_df <- plot_df %>%
+      filter(!is.na(state), state == input$state_sel)
     p <- plot_ly(source = "map")
     
     if (nrow(bad_df) > 0) {
@@ -475,7 +701,7 @@ server <- function(input, output, session) {
           locationmode = "USA-states",
           locations = ~state_abb,
           key = ~state_abb,
-          z = ~map_value,
+          z = ~map_value_plot,
           text = ~hover_text,
           hoverinfo = "text",
           colorscale = list(list(0, "gray80"), list(1, "gray80")),
@@ -516,23 +742,46 @@ server <- function(input, output, session) {
     p
   })
   
+  # ----------------------------------------------------------
+  # Click interaction: click a state on the map -> update dropdown
+  # ----------------------------------------------------------
+  # click$key stores the state abbreviation because you set:
+  #   key = ~state_abb
+  #
+  # lookup_df uses map_data() so it works for both:
+  # - largest (welcome_df_fixed)
+  # - single-category (map_df)
+  # ----------------------------------------------------------
+  
   observeEvent(event_data("plotly_click", source = "map"), {
     click <- event_data("plotly_click", source = "map")
     req(click$key)
     
     clicked_abb <- click$key
     
-    clicked_name <- tibble(state_abb = state.abb, state = state.name) %>%
+    # Use the data actually being plotted (works even if your abbreviations differ from base R lists)
+    lookup_df <- map_data() %>%
+      distinct(state, state_abb) %>%
+      filter(!is.na(state), !is.na(state_abb))
+    
+    clicked_name <- lookup_df %>%
       filter(state_abb == clicked_abb) %>%
       pull(state)
     
     if (length(clicked_name) == 0) return()
     updateSelectInput(session, "state_sel", selected = clicked_name[1])
   })
-  
-  # -------------------------
-  # Detailed State Context (unchanged)
-  # -------------------------
+  # ----------------------------------------------------------
+  # Detailed State Context card
+  # ----------------------------------------------------------
+  # Produces a narrative description combining:
+  # - eligibility category (A/B/C) and participation rate
+  # - funding source + private insurance billing
+  # - within-state disparities (top 1 or top 2 categories)
+  # - a national context sentence (how common this category is as "largest")
+  #
+  # White-space is preserved using pre-line so \n\n becomes paragraph breaks.
+  # ----------------------------------------------------------
   output$policy_context_card <- renderUI({
     req(input$state_sel, input$exit_cat)
     
