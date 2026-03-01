@@ -382,6 +382,11 @@ server <- function(input, output, session) {
       filter(State == input$state_sel) %>%
       slice(1)
     
+    # comparison settings (place near top of compact_snapshot)
+    national_avg <- 4.20
+    threshold <- 0.5  # +/- 0.5 percentage points considered "about the same"
+    
+    
     part_rate <- if (nrow(row_elig) == 0) NA_real_ else row_elig$ei_participation_rate[[1]]
     
     elig_cat <- if (nrow(row_elig) == 0) NA_character_ else row_elig$eligibility_category[[1]]
@@ -451,10 +456,21 @@ server <- function(input, output, session) {
     # Render the 4 icon blocks
     tagList(
       # 1) Participation rate
+      # --- Participation rate block (replace existing baby icon block) ---
       div(
         style = "display:flex; align-items:flex-start; gap:16px; margin-bottom:22px;",
         tags$img(
-          src   = "baby.svg",
+          src = {
+            if (is.na(part_rate)) {
+              "baby.svg"       # fallback if no data
+            } else if (part_rate > national_avg + threshold) {
+              "circle-arrow-up.svg"
+            } else if (part_rate < national_avg - threshold) {
+              "circle-arrow-down.svg"
+            } else {
+              "equal-approx.svg"
+            }
+          },
           style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
         ),
         div(
@@ -462,15 +478,27 @@ server <- function(input, output, session) {
             style = "font-size:18px; font-weight:600; line-height:1.2;",
             if (is.na(part_rate)) "Not available" else paste0(sprintf("%.2f", part_rate), "%")
           ),
-          div(style = "font-size:14px; color:#666; margin-top:2px;", "EI participation rate")
+          div(style = "font-size:14px; color:#666; margin-top:2px;", "EI participation rate"),
+          if (!is.na(part_rate)) {
+            div(
+              style = "font-size:12px; color:#666; margin-top:4px;",
+              if (part_rate > national_avg + threshold) {
+                "Above national average"
+              } else if (part_rate < national_avg - threshold) {
+                "Below national average"
+              } else {
+                "About the national average"
+              }
+            )
+          } else NULL
         )
-      ),
+        ), 
       
       # 2) Eligibility strictness
       div(
         style = "display:flex; align-items:flex-start; gap:16px; margin-bottom:22px;",
         tags$img(
-          src   = "door.svg",
+          src   = "door-open.svg",
           style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
         ),
         div(
@@ -486,7 +514,7 @@ server <- function(input, output, session) {
       div(
         style = "display:flex; align-items:flex-start; gap:16px; margin-bottom:22px;",
         tags$img(
-          src   = "money2.svg",
+          src   = "circle-dollar-sign.svg",
           style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
         ),
         div(
@@ -503,7 +531,7 @@ server <- function(input, output, session) {
       div(
         style = "display:flex; align-items:flex-start; gap:16px;",
         tags$img(
-          src   = "scale.svg",
+          src   = "scale_4.svg",
           style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
         ),
         div(
@@ -634,7 +662,7 @@ server <- function(input, output, session) {
   updateSelectInput(
     session,
     inputId = "state_sel",
-    choices = sort(unique(df$state)),
+    choices = sort(setdiff(unique(df$state), "US and Outlying Areas")),
     selected = "Oregon"
   )
   
