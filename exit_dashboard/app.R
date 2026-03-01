@@ -427,9 +427,8 @@ server <- function(input, output, session) {
       if (input$exit_cat == "largest") {
         paste0(
           pretty_cat(top_cat$category[[1]]), "<br>",
-          "Highest: ", race_hi, " (OR ", fmt_or(or_hi), ")<br>",
-          "Lowest: ", race_lo, " (OR ", fmt_or(or_lo), ")<br>",
-          "OR ratio (highest/lowest): ", fmt_or(or_hi / or_lo)
+          "Highest: ", race_hi, " (OR ", fmt_or(or_hi), "); ",
+          "Lowest: ", race_lo, " (OR ", fmt_or(or_lo), ")"
         )
       } else {
         paste0(
