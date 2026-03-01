@@ -384,6 +384,16 @@ server <- function(input, output, session) {
     
     part_rate <- if (nrow(row_elig) == 0) NA_real_ else row_elig$ei_participation_rate[[1]]
     
+    elig_cat <- if (nrow(row_elig) == 0) NA_character_ else row_elig$eligibility_category[[1]]
+    
+    elig_label <- dplyr::case_when(
+      is.na(elig_cat) ~ "Not available",
+      elig_cat == "A" ~ "More Expansive (Category A)",
+      elig_cat == "B" ~ "Moderate (Category B)",
+      elig_cat == "C" ~ "More Restrictive (Category C)",
+      TRUE ~ paste("Category", elig_cat)
+    )
+    
     # Pull funding info for the selected state
     row_fund <- funding_df %>%
       filter(State == input$state_sel) %>%
@@ -438,7 +448,7 @@ server <- function(input, output, session) {
       }
     }
     
-    # Render the 3 icon blocks
+    # Render the 4 icon blocks
     tagList(
       # 1) Participation rate
       div(
@@ -447,7 +457,6 @@ server <- function(input, output, session) {
           src   = "baby.svg",
           style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
         ),
-        # 2) Funding + insurance
         div(
           div(
             style = "font-size:18px; font-weight:600; line-height:1.2;",
@@ -456,7 +465,24 @@ server <- function(input, output, session) {
           div(style = "font-size:14px; color:#666; margin-top:2px;", "EI participation rate")
         )
       ),
-      # 3) Disparity summary
+      
+      # 2) Eligibility strictness
+      div(
+        style = "display:flex; align-items:flex-start; gap:16px; margin-bottom:22px;",
+        tags$img(
+          src   = "door.svg",
+          style = "width:48px; height:48px; object-fit:contain; display:block; margin-top:2px;"
+        ),
+        div(
+          div(
+            style = "font-size:18px; font-weight:600; line-height:1.2;",
+            elig_label
+          ),
+          div(style = "font-size:14px; color:#666; margin-top:2px;", "Eligibility strictness")
+        )
+      ),
+      
+      # 3) Funding + insurance
       div(
         style = "display:flex; align-items:flex-start; gap:16px; margin-bottom:22px;",
         tags$img(
@@ -473,6 +499,7 @@ server <- function(input, output, session) {
         )
       ),
       
+      # 4) Disparity summary
       div(
         style = "display:flex; align-items:flex-start; gap:16px;",
         tags$img(
@@ -483,7 +510,7 @@ server <- function(input, output, session) {
           div(
             style = "font-size:14px; font-weight:600; line-height:1.2;",
             HTML(disparity_text)
-          ),          
+          ),
           div(
             style = "font-size:14px; color:#666; margin-top:2px;",
             if (input$exit_cat == "largest") {
@@ -492,10 +519,10 @@ server <- function(input, output, session) {
               paste0("Disparity in ", pretty_cat(input$exit_cat), " category")
             }
           )
-          )
+        )
       )
-    )
-  })
+    )  # end tagList
+  })   # end renderUI
   
   # ----------------------------------------------------------
   # Winners across categories for each state (largest view)
@@ -790,6 +817,14 @@ server <- function(input, output, session) {
     
     elig_cat  <- if (nrow(row_elig) == 0) NA_character_ else row_elig$eligibility_category[[1]]
     part_rate <- if (nrow(row_elig) == 0) NA_real_      else row_elig$ei_participation_rate[[1]]
+  
+    elig_label <- dplyr::case_when(
+      is.na(elig_cat) ~ "Not available",
+      elig_cat == "A" ~ "More Expansive (Category A)",
+      elig_cat == "B" ~ "Moderate (Category B)",
+      elig_cat == "C" ~ "More Restrictive (Category C)",
+      TRUE ~ paste("Category", elig_cat)
+    )
     
     elig_phrase <- dplyr::case_when(
       is.na(elig_cat) ~ "Eligibility criteria information is not available",
