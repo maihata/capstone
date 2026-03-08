@@ -961,14 +961,45 @@ server <- function(input, output, session) {
           )
         }
         
-        bullets <- c(
-          paste0("• ", race_hi, ": OR ", fmt_or(or_hi)),
-          paste0("• ", race_lo, ": OR ", fmt_or(or_lo))
-        )
+        # Convert OR to percentage increase/decrease
+        pct_hi <- round(100 * (or_hi - 1), 0)
+        pct_lo <- round(100 * (or_lo - 1), 0)
         
-        blocks <- c(blocks, paste(c(header_line, bullets), collapse = "\n"))
+        # Build the high group description
+        high_desc <- if (or_hi > 1) {
+          paste0(race_hi, " children are ", fmt_or(or_hi), " times, or approximately ", pct_hi, "% more likely,")
+        } else {
+          paste0(race_hi, " children are approximately ", abs(pct_hi), "% less likely,")
+        }
+        
+        # Build the low group description
+        low_desc <- if (or_lo > 1) {
+          paste0("while ", race_lo, " children are ", fmt_or(or_lo), " times, or approximately ", pct_lo, "% more likely")
+        } else {
+          paste0("while ", race_lo, " children are ", fmt_or(or_lo), " times, or approximately ", abs(round(100 * (1 - or_lo), 0)), "% less likely")
+        }
+        
+        # Add header line for each category
+        if (input$exit_cat == "largest") {
+          if (i == 1) {
+            intro <- paste0('In ', input$state_sel, ', the largest between-group OR disparity across exit categories is observed in the "', pretty_cat(cat_i), '" category:')          } else {
+            intro <- paste0('Another large between-group OR disparity is observed in the "', pretty_cat(cat_i), '" category:')
+          }
+        } else {
+          intro <- ""
+        }
+        
+        # Combine into one sentence
+        disp_text_sentence <- paste0(high_desc, " than the state average to exit EI via ", pretty_cat(cat_i), ", ", low_desc, " to experience exit via ", pretty_cat(cat_i), ".")
+        
+        # Add intro + sentence
+        if (intro != "") {
+          blocks <- c(blocks, paste0(intro, " ", disp_text_sentence))
+        } else {
+          blocks <- c(blocks, disp_text_sentence)
+        }
       }
-      
+        
       if (length(blocks) > 0) disp_text <- paste(blocks, collapse = "\n\n")
     }
     
