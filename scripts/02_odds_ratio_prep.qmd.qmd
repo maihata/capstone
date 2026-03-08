@@ -21,6 +21,8 @@ library(pwr)
 library(epitools)
 library(shiny)
 library(plotly)
+library(readr)
+
 ```
 
 ✅ Step 1. Make paths stable (so you don’t get this error again)
@@ -276,4 +278,73 @@ saveRDS(
   final_or_tbl,
   "/Users/maiko/Desktop/capstone/data/analysis/state_avg_or_by_race_category_all_years.rds"
 )
+```
+
+```{r}
+
+# Set working directory
+setwd("/Users/maiko/Desktop/capstone/")
+
+# 1. Import the CSV
+years_combined_by_race_state <- read_csv("data/analysis/osep_exits_all_years_all_race_analysis.csv")
+
+head(years_combined_by_race_state)
+str(years_combined_by_race_state)
+```
+
+```{r}
+# 2. Combine all years for each state/race combination
+# Sum across years, keeping state and race_ethnicity separate
+
+combined_by_state_race <- years_combined_by_race_state %>%
+  group_by(state, race_ethnicity) %>%
+  summarise(
+    total_exits = sum(total_exits, na.rm = TRUE),
+    dismissed = sum(dismissed, na.rm = TRUE),
+    moved_out = sum(moved_out, na.rm = TRUE),
+    not_determined = sum(not_determined, na.rm = TRUE),
+    not_eligible = sum(not_eligible, na.rm = TRUE),
+    part_b_eligible = sum(part_b_eligible, na.rm = TRUE),
+    withdrawn = sum(withdrawn, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+head(combined_by_state_race)
+```
+
+```{r}
+# Look at South Dakota specifically
+sd_data <- combined_by_state_race %>%
+  filter(state == "South Dakota") %>%
+  arrange(race_ethnicity)
+
+sd_data
+```
+
+```{r}
+# Look at South Dakota specifically
+sd_data <- combined_by_state_race %>%
+  filter(state == "South Dakota") %>%
+  arrange(race_ethnicity) %>%
+  mutate(
+    dismissed_pct = round(100 * dismissed / total_exits, 2)
+  ) %>%
+  select(state, race_ethnicity, total_exits, dismissed, dismissed_pct, moved_out, not_determined, not_eligible, part_b_eligible, withdrawn)
+```
+
+```{r}
+kable(sd_data %>% select(-state), 
+      col.names = c("Race/Ethnicity", "Total Exits", "Dismissed for No Contact", "% Dismissed", "Moved Out", "Not Determined", "Not Eligible", "Part B Eligible", "Withdrawn"),
+      caption = "South Dakota EI Exits by Race/Ethnicity (All Years Combined)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), font_size = 12) %>%
+  kable_classic(full_width = FALSE, html_font = "Times New Roman") %>%
+  row_spec(0, extra_css = "line-height: 1;")
+```
+
+```{r}
+setwd("/Users/maiko/Desktop/capstone/")
+
+# 3. Save the combined dataset
+saveRDS(combined_by_state_race, "data/analysis/combined_years_by_state_race.rds")
+write_csv(combined_by_state_race, "data/analysis/combined_years_by_state_race.csv")
 ```

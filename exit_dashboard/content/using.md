@@ -8,17 +8,18 @@ editor_options:
 
 The interactive map displays, for each state, the exit category with the
 largest observed disparity when “Largest Disparity Category (All)” is
-selected. Map colors are based on the log of the odds ratio (log OR).
-Using the log scale treats differences above and below 1 symmetrically.
-For example, odds ratios of 2.0 and 0.5 are equally distant from 1, but
-in opposite directions (twice as likely vs. half as likely). This
-approach highlights where variation is most pronounced within each state
-while maintaining analytic consistency across categories. When you hover
-over a state, the displayed values are standard odds ratios (OR). Odds
-ratios above 1 indicate higher likelihood relative to the reference
-group, and values below 1 indicate lower likelihood. The log scale is
-used for visual comparison on the map, while OR values are shown for
-interpretability.
+selected. Map colors are based on the log of the odds ratio (log OR),
+with comparisons made to each state's average outcome based on QuantCrit
+approach. Using the log scale treats differences above and below 1
+symmetrically. For example, odds ratios of 2.0 and 0.5 are equally
+distant from 1, but in opposite directions (twice as likely vs. half as
+likely). This highlights where differences are biggest within each state
+while using the same approach for fair comparison across all states.
+When you hover over a state, the displayed values are standard odds
+ratios (OR). Odds ratios above 1 indicate higher likelihood compared to
+what's typical in that state, and values below 1 indicate lower
+likelihood. The log scale is used for visual comparison on the map,
+while OR values are shown for interpretability.
 
 You can:
 

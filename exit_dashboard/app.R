@@ -727,6 +727,9 @@ server <- function(input, output, session) {
   #
   # Using event_register("plotly_click") enables click events.
   # ----------------------------------------------------------
+  # Fixed color scale
+  color_range <- list(min = 0, max = 3.5)
+  
   output$map_plot <- renderPlotly({
     plot_df <- map_data()
     req(nrow(plot_df) > 0)
@@ -760,7 +763,9 @@ server <- function(input, output, session) {
           hoverinfo = "text",
           colorscale = list(list(0, "gray80"), list(1, "gray80")),
           showscale = FALSE,
-          marker = list(line = list(color = "white", width = 0.5))
+          marker = list(line = list(color = "white", width = 0.5)),
+          zmin = color_range$min,
+          zmax = color_range$max
         )
     }
     
@@ -781,7 +786,9 @@ server <- function(input, output, session) {
           x = -0.05,
           xanchor = "right"
           ), 
-          marker = list(line = list(color = "white", width = 0.5))
+          marker = list(line = list(color = "white", width = 0.5)),
+          zmin = color_range$min,
+          zmax = color_range$max
         )
     }
     
