@@ -119,3 +119,16 @@ exit data, funding context, and interpretive approaches.
     Early Intervention and Early Childhood Special Education: Looking at
     equity. National Institute for Early Education Research. Used for:
     State funding context and interpretation of financing structures.
+-   Center for Children and Families, Georgetown University McCourt
+    School of Public Policy. (March 7, 2025). Medicaid provides Early
+    Intervention for infants and toddlers with disabilities and
+    developmental delays.
+    <https://ccf.georgetown.edu/2025/03/07/medicaid-provides-early-intervention-for-infants-and-toddlers-with-disabilities-and-developmental-delays/>
+    Used for: State funding context and interpretation of financing
+    structures.
+-   Prenatal-to-3 Policy Impact Center (2026). Early Intervention
+    Services.
+    <https://pn3policy.org/pn-3-state-policy-roadmap-2023/us/early-intervention/>
+    Used for: State funding context and interpretation of financing
+    structures.
+-   
