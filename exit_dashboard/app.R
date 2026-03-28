@@ -976,7 +976,7 @@ server <- function(input, output, session) {
         low_desc <- if (or_lo > 1) {
           paste0("while ", race_lo, " children are ", fmt_or(or_lo), " times, or approximately ", pct_lo, "% more likely")
         } else {
-          paste0("while ", race_lo, " children are ", fmt_or(or_lo), " times, or approximately ", abs(round(100 * (1 - or_lo), 0)), "% less likely")
+          paste0("while ", race_lo, " children are approximately ", abs(round(100 * (1 - or_lo), 0)), "% less likely (OR ", fmt_or(or_lo), ")")
         }
         
         # Add header line for each category
@@ -1060,57 +1060,59 @@ server <- function(input, output, session) {
     }
     
     text_bank <- list(
-      overall = paste(
+      overall = c(
         "Observed disparities should be understood within broader social and policy contexts, not as characteristics of racial or language groups.",
-        "Social Determinants of Health, including housing stability, health care access, and early screening opportunities, shape who enters and exits the EI pipeline.",
-        "Differences at exit often reflect inequities earlier in the pipeline.",
-        "Equitable data practices require attention to how demographic and language data are defined, collected, and interpreted."
+        "Social Determinants of Health - including housing stability and health care access - shape who enters the EI pipeline and when.",
+        "Differences at exit often reflect inequities earlier in the pipeline: research consistently documents disparities in screening and referral rates across racial, linguistic, immigration status, and insurance status groups.",
+        "Equitable data practices require attention to how demographic and language data are defined, collected, and interpreted. When data collection is driven by minimum compliance standards, meaningful patterns can be obscured and accountability becomes harder to establish."
       ),
-      dismissed = paste(
-        "Differences in dismissal due to lost contact may reflect how demographic and language data are defined and recorded.",
-        "Social Determinants of Health, including housing stability, insurance access, and transportation, may influence continuity of contact.",
-        "Clarifying dismissal due to lost contact procedures, making follow-up steps explicit, and reducing subjectivity can support more equitable decision-making.",
-        "Culturally and linguistically responsive engagement strengthens trust and reduces unnecessary service interruption."
+      dismissed = c(
+        "Differences in dismissal due to lost contact may reflect inconsistencies in how demographic and language data are defined and recorded across programs.",
+        "Social Determinants of Health - including housing instability, lack of insurance, and transportation barriers - can interrupt continuity of contact.",
+        "Clarifying lost-contact dismissal procedures, making follow-up steps explicit, and reducing practitioner subjectivity can support more consistent and equitable decision-making.",
+        "Culturally and linguistically responsive engagement strengthens family trust and reduces unnecessary service interruption. Sustained training in this area is essential."
       ),
-      not_eligible = paste(
-        "Differences in Not Eligible determinations may reflect when children enter the EI pipeline and the level of concern at referral.",
-        "Racially and linguistically marginalized children often access screening later, which may influence eligibility outcomes.",
-        "Patterns in this category should be interpreted alongside referral pathways, outreach practices, and Social Determinants of Health.",
-        "Strengthening early outreach may influence how families enter services and shape later transition outcomes."
+      not_eligible = c(
+        "Differences in Not Eligible determinations may reflect when children enter the EI pipeline and the level of concern documented at referral - patterns shaped in part by well-documented disparities in screening and referral access across racial, linguistic, immigration status, and insurance status groups.",
+        "Racially and linguistically marginalized children often enter EI later and with more significant needs, which can affect eligibility determinations at evaluation.",
+        "Patterns in this category should be interpreted alongside referral pathways, outreach reach and quality, and the Social Determinants of Health shaping when and how families access services.",
+        "Strengthening early outreach can shift when and how families enter the EI system. Research documents that insurance status, immigration status, and language access all influence how early children reach screening and referral."
       ),
-      moved_out = paste(
-        "Differences in Moved Out exits may reflect housing mobility, migration patterns, and other conditions affecting living environments.",
-        "Mobility is shaped by intersecting Social Determinants of Health rather than characteristics of racial or language groups.",
-        "Strong inter-agency communication and documentation practices support continuity of services when families relocate.",
-        "More detailed and disaggregated data can improve understanding of mobility-related patterns."
+      moved_out = c(
+        "Mobility is shaped by many elements including intersecting Social Determinants of Health. Ensuring continuity of support across regions and service systems is essential to preventing gaps in care when families relocate.",
+        "Strong inter-agency communication and documentation practices are critical for maintaining service continuity when families move across program or state boundaries.",
+        "More detailed and disaggregated data would improve understanding of mobility-related exit patterns. Research shows that mobility is diverse even within immigrant communities, making broad assumptions about this category particularly risky."
       ),
-      part_b_eligible = paste(
-        "Differences in Part B eligibility patterns may reflect timing of entry into the EI pipeline.",
-        "Variation in screening access and Social Determinants of Health influence transition positioning at age three.",
-        "Decision points across the EI pipeline are interconnected and shape later eligibility outcomes."
+      part_b_eligible = c(
+        "Differences in Part B eligibility patterns may reflect when children entered the EI pipeline - shaped in part by documented disparities in screening and referral access across racial, linguistic, immigration status, and insurance status groups.",
+        "Variation in access and Social Determinants of Health influences where children are developmentally at the time of transition, affecting their positioning for Part B eligibility at or before age three.",
+        "Decision points across the EI pipeline are interconnected: who is referred, when, and with what level of documented concern all shape outcomes at transition."
       ),
-      not_determined = paste(
-        "Differences in Not Determined exits may reflect documentation completeness, follow-up procedures, or communication practices.",
-        "Strengthening clarity and consistency in evaluation workflows can reduce uneven outcomes.",
-        "As with dismissal due to lost contact, interruption before transition may reflect structural barriers rather than developmental need.",
-        "Reviewing timelines and family engagement supports can improve equity and interpretability."
+      not_determined = c(
+        "Differences in Not Determined exits may reflect variation in documentation completeness, follow-up procedures, or the consistency of communication between families and programs.",
+        "Strengthening clarity and consistency in evaluation and transition workflows - and reducing reliance on practitioner discretion - can help produce more equitable outcomes across groups.",
+        "As with dismissal due to lost contact, exits before a determination is reached may reflect structural barriers to sustained engagement rather than developmental factors."
       ),
-      withdrawn = paste(
-        "Differences in Withdrawn exits may reflect family circumstances, access barriers, or changing priorities.",
-        "Social Determinants of Health and service accessibility influence continuity of participation.",
-        "Examining outreach, communication clarity, and cultural responsiveness can help interpret patterns in this category.",
-        "Data should be interpreted within broader structural contexts rather than as individual family characteristics."
+      withdrawn = c(
+        "Differences in Withdrawn exits may reflect family circumstances, competing priorities, or unmet access needs - not disengagement from services as a fixed characteristic.",
+        "Social Determinants of Health and service accessibility shape families' ability to participate continuously in EI. Identifying unmet needs may help prevent premature exits.",
+        "Making outreach, communication, and cultural responsiveness explicit program priorities - and investing in training across all staff roles - can help reduce inequitable withdrawal patterns.",
+        "Data in this category should be interpreted within structural contexts rather than attributed to individual family characteristics. When disparities are explained away by demographics, systems are shielded from accountability for the conditions they create."
       )
     )
     
     body <- if (input$exit_cat == "largest") text_bank$overall else text_bank[[cat_for_strategy]]
     if (is.null(body)) body <- "Equity strategies will be expanded in a future version."
     
+    # Sample one sentence
+    chosen <- sample(body, 1)
+    
     tags$div(
       style = "white-space: normal; line-height: 1.6; margin: 0;",
-      body
+      chosen
     )
   })
+  
 }
 
 shinyApp(ui = ui, server = server)
